@@ -28,6 +28,8 @@ import logging
 import os
 import secrets
 import struct
+import sys
+import time
 
 log = logging.getLogger("netshare")
 
@@ -152,3 +154,85 @@ def setup_logging(verbose: bool = False) -> None:
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
+
+
+# ---------------------------------------------------------------- crash UX
+# A double-clicked frozen exe closes its console on crash, swallowing the
+# traceback. These helpers make failures visible instead.
+
+_console_hidden = False
+
+
+def write_crash_log(text: str) -> str | None:
+    """Append a crash report to <config>/netshare-crash.log; return the path."""
+    try:
+        path = os.path.join(config_dir(), "netshare-crash.log")
+        os.makedirs(config_dir(), exist_ok=True)
+        with open(path, "a") as f:
+            f.write(f"\n===== {time.strftime('%Y-%m-%d %H:%M:%S')} "
+                    f"netshare {os.environ.get('NETSHARE_VERSION', '')} =====\n{text}\n")
+        return path
+    except OSError:
+        return None
+
+
+def message_box(text: str, title: str = "netshare") -> None:
+    """Show a native error dialog on Windows (no-op elsewhere)."""
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        MB_ICONERROR, MB_SETFOREGROUND = 0x10, 0x10000
+        ctypes.windll.user32.MessageBoxW(None, text, title, MB_ICONERROR | MB_SETFOREGROUND)
+    except Exception:
+        pass
+
+
+def hide_console() -> bool:
+    """Hide our launcher console when we own it (double-click launch).
+
+    If the console belongs to a terminal the user is typing in, do nothing.
+    Returns True if a console we own was hidden.
+    """
+    global _console_hidden
+    if os.name != "nt":
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if not hwnd:
+            return False
+        pid = wintypes.DWORD()
+        ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value != os.getpid():
+            return False  # user's own terminal window
+        ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
+        _console_hidden = True
+        return True
+    except Exception:
+        return False
+
+
+def show_console() -> None:
+    """Re-show a console window that hide_console() hid."""
+    global _console_hidden
+    if os.name != "nt" or not _console_hidden:
+        return
+    _console_hidden = False
+    try:
+        import ctypes
+        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 5)  # SW_SHOW
+    except Exception:
+        pass
+
+
+def pause_interactive() -> None:
+    """Keep a double-clicked console window open so output stays readable."""
+    try:
+        if sys.stdin is not None and sys.stdin.isatty():
+            input("\nPress Enter to close...")
+    except (EOFError, KeyboardInterrupt):
+        pass

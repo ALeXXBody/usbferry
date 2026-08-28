@@ -172,10 +172,27 @@ Caveat: the tunnel is authenticated/encrypted but carries no application-level
 authorization per USB device — any token can attach any *bound* device. Bind
 only what you share; issue per-person tokens and revoke to cut access.
 
+## Troubleshooting
+
+- **Window flashes and closes on Windows** → fixed in v0.2.1: any startup
+  error now shows a dialog and is written to
+  `<home>\.config\netshare\netshare-crash.log`. Check `.\netshare.exe --version`
+  to confirm you're on v0.2.1 or later.
+- **No native window** → if the WebView2 runtime is missing, netshare
+  automatically falls back to opening the GUI in your default browser
+  (fully functional; the console window must stay open).
+- **USB attach fails on Windows** → install the
+  [usbip-win2](https://github.com/vadimgrn/usbip-win2/releases) client driver
+  and run PowerShell as Administrator.
+- **Server: usb/lan show UNAVAILABLE** → server needs a standard distro
+  kernel (`usbip` package + `usbip-core`/`usbip-host` modules; `/dev/net/tun`).
+  TrueNAS/unprivileged LXCs block both — use a VM.
+
 ## Development
 
 ```bash
-python3 tests/test_loopback.py     # full protocol/relay/auth suite, no hardware needed
+python3 tests/test_loopback.py     # protocol/relay/auth suite
+python3 tests/test_gui.py          # GUI backend + webview-fallback suite
 ```
 
 Layout: `netshare/common.py` (framing) · `server.py` (tunnel+usbip+LAN) ·

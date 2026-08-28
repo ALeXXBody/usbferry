@@ -7,7 +7,10 @@ import signal
 import sys
 
 from . import __version__
-from .common import DEFAULT_PORT, setup_logging
+from .common import (
+    DEFAULT_PORT, message_box, pause_interactive, setup_logging,
+    write_crash_log,
+)
 
 
 def need_root(why: str):
@@ -198,11 +201,33 @@ async def _token_cmd(args, action):
             print(f"{t['name']:<24} created {t.get('created', '?')}")
 
 
+def _fatal() -> None:
+    """Unexpected crash: show it, log it, keep the window open."""
+    import traceback
+    tb = traceback.format_exc()
+    print(tb, file=sys.stderr)
+    path = write_crash_log(tb)
+    last = tb.strip().splitlines()[-1] if tb.strip() else "unknown error"
+    msg = f"netshare hit an unexpected error:\n\n{last}\n\n"
+    if path:
+        msg += f"Full details were saved to:\n{path}\n\n"
+    msg += ("If this keeps happening, please open an issue:\n"
+            "https://github.com/ALeXXBody/netshare/issues")
+    message_box(msg)
+    pause_interactive()
+
+
 def main():
     if len(sys.argv) == 1:
         sys.argv.append("gui")  # double-click / no-args launches the GUI
-    args = build_parser().parse_args()
+    try:
+        args = build_parser().parse_args()
+    except SystemExit as e:
+        if e.code not in (0, None):
+            pause_interactive()  # bad args: let the user read the usage error
+        raise
     setup_logging(args.verbose)
+    from .client import ClientError, SecurityError
     try:
         if args.cmd == "serve":
             asyncio.run(cmd_serve(args))
@@ -223,12 +248,13 @@ def main():
             asyncio.run(_token_cmd(args, "list"))
     except KeyboardInterrupt:
         print("\n[*] interrupted")
-    except Exception as e:
-        from .client import ClientError, SecurityError
-        if isinstance(e, (ClientError, SecurityError)):
-            print(f"[!] {e}", file=sys.stderr)
-            sys.exit(1)
-        raise
+    except (ClientError, SecurityError) as e:
+        print(f"[!] {e}", file=sys.stderr)
+        pause_interactive()
+        sys.exit(1)
+    except Exception:
+        _fatal()
+        sys.exit(1)
 
 
 if __name__ == "__main__":

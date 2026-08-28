@@ -16,7 +16,7 @@ os.environ["NETSHARE_CONFIG_DIR"] = TMP
 
 from test_loopback import FakeUsbip, echo_server, http_api  # noqa: E402
 from netshare.client import NetshareClient  # noqa: E402
-from netshare.gui import GuiApp  # noqa: E402
+from netshare.gui import GuiApp, run_gui  # noqa: E402
 from netshare.server import LanManager, NetshareServer  # noqa: E402
 from netshare.tapw import pipe_tap_pair  # noqa: E402
 
@@ -108,6 +108,62 @@ async def main():
     await gui.stop()
     echo_srv.close()
     await srv.stop()
+
+    # [webview crash -> browser fallback] — simulates the reported Windows bug:
+    # pywebview import works but start() raises (e.g. WebView2 runtime missing).
+    print("[webview crash fallback]")
+    import contextlib
+    import io
+    import threading as _threading
+    import types as _types
+    import webbrowser as _wb
+
+    class _Stop(Exception):
+        pass
+
+    opened = {}
+
+    def _fake_open(u, *a, **k):
+        opened["url"] = u
+        return True
+
+    def _wait_raises(timeout=None):
+        raise _Stop()
+
+    def _start_boom(*a, **k):
+        raise RuntimeError("simulated WebView2 failure")
+
+    fake_wv = _types.ModuleType("webview")
+    fake_wv.create_window = lambda *a, **k: None
+    fake_wv.start = _start_boom
+    orig_open = _wb.open
+    _wb.open = _fake_open
+    sys.modules["webview"] = fake_wv
+    buf = io.StringIO()
+    result = {}
+
+    def _runner():
+        try:
+            with contextlib.redirect_stdout(buf):
+                run_gui(_wait=_wait_raises)
+            result["ended"] = "returned"
+        except _Stop:
+            result["ended"] = "stopped-in-fallback"
+        except BaseException as e:  # noqa: BLE001
+            result["ended"] = f"crashed: {e!r}"
+
+    t = _threading.Thread(target=_runner)
+    t.start()
+    t.join(timeout=10)
+    _wb.open = orig_open
+    sys.modules.pop("webview", None)
+    out = buf.getvalue()
+    check("webview.start() crash -> browser fallback, process survives",
+          result.get("ended") == "stopped-in-fallback"
+          and "127.0.0.1" in opened.get("url", "")
+          and "unavailable" in out,
+          f"ended={result.get('ended')} url={opened.get('url')} out={out[:100]!r}")
+    check("fallback explains what happened", "simulated WebView2 failure" in out)
 
     print(f"\n{'='*46}\n{len(PASS)} passed, {len(FAIL)} failed")
     if FAIL:

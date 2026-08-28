@@ -9,8 +9,21 @@ permissions:
   contents: write
 
 jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run test suites
+        run: |
+          python3 tests/test_loopback.py
+          python3 tests/test_gui.py
+
   windows-exe:
     runs-on: windows-latest
+    needs: tests
     steps:
       - uses: actions/checkout@v4
 
@@ -21,8 +34,9 @@ jobs:
       - name: Build netshare.exe
         shell: pwsh
         run: |
-          pip install pyinstaller pywebview
+          pip install pyinstaller pywebview pythonnet
           pyinstaller --onefile --console --name netshare `
+            --collect-all webview `
             --add-data "web/index.html;web" `
             --add-data "web/app.html;web" `
             netshare-cli.py
@@ -32,6 +46,14 @@ jobs:
         run: |
           dist\netshare.exe --version
           dist\netshare.exe --help
+          # GUI must start, print its URL, and stay alive (headless mode)
+          $p = Start-Process -FilePath "dist\netshare.exe" -ArgumentList "gui","--no-window" -PassThru -RedirectStandardOutput "gui-out.txt" -RedirectStandardError "gui-err.txt"
+          Start-Sleep -Seconds 8
+          if ($p.HasExited) { Get-Content gui-out.txt, gui-err.txt; throw "gui exited early" }
+          $out = Get-Content gui-out.txt -Raw
+          if ($out -notmatch "127\.0\.0\.1:\d+") { Get-Content gui-out.txt, gui-err.txt; throw "no GUI url in output" }
+          Stop-Process -Id $p.Id -Force
+          "gui smoke OK"
 
       - uses: actions/upload-artifact@v4
         with:

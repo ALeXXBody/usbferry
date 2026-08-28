@@ -17,7 +17,7 @@ from collections import deque
 
 from . import __version__
 from .client import NetshareClient, SecurityError, usbip_attach, usbip_detach_ours
-from .common import human_bytes, load_json, log, save_json
+from .common import hide_console, human_bytes, load_json, log, save_json, show_console
 from .httpd import parse_request, respond
 
 APP_CANDIDATES = [
@@ -290,7 +290,9 @@ class GuiApp:
                 pass
 
 
-def run_gui(no_window: bool = False) -> None:
+def run_gui(no_window: bool = False, _wait=None) -> None:
+    """Launch the GUI. _wait is a test seam for the blocking fallback wait."""
+    wait = _wait or threading.Event().wait
     app = GuiApp()
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -298,29 +300,42 @@ def run_gui(no_window: bool = False) -> None:
     url = f"http://127.0.0.1:{port}/"
     threading.Thread(target=loop.run_forever, daemon=True).start()
 
-    webview = None
-    if not no_window:
-        try:
-            import webview  # pywebview (optional)
-        except Exception as e:
-            log.info("pywebview unavailable (%s) - using browser", e)
-
-    if webview is not None:
-        webview.create_window(
-            f"netshare {__version__}", url, width=1020, height=700,
-            min_size=(780, 540), background_color="#0d1117")
-        webview.start()  # blocks until the window is closed
+    def shutdown():
         try:
             asyncio.run_coroutine_threadsafe(app.stop(), loop).result(timeout=10)
         except Exception:
             pass
-    else:
-        print(f"\n  netshare GUI running at {url}\n  (Ctrl-C here to quit)\n")
-        webbrowser.open(url)
+
+    def browser_fallback(reason: str):
+        print(f"\n  [!] native window unavailable: {reason}")
+        print(f"  netshare GUI is running at {url}")
+        print("  A browser tab should open automatically; if not, open the")
+        print("  address above manually. Keep this window open; Ctrl-C to quit.\n")
         try:
-            threading.Event().wait()  # forever; daemon threads die with process
+            webbrowser.open(url)
+        except Exception:
+            pass
+        try:
+            wait()
         except KeyboardInterrupt:
-            try:
-                asyncio.run_coroutine_threadsafe(app.stop(), loop).result(timeout=10)
-            except Exception:
-                pass
+            shutdown()
+
+    if no_window:
+        browser_fallback("--no-window mode")
+        return
+
+    try:
+        import webview
+        webview.create_window(
+            f"netshare {__version__}", url, width=1020, height=700,
+            min_size=(780, 540), background_color="#0d1117")
+        hide_console()  # hide the launcher console only if we own it
+        webview.start()  # blocks until the window is closed
+    except Exception as e:
+        show_console()
+        log.warning("native GUI failed (%s: %s); falling back to browser",
+                    type(e).__name__, e)
+        browser_fallback(f"{type(e).__name__}: {e}")
+        return
+
+    shutdown()
