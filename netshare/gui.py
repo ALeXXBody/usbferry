@@ -8,6 +8,7 @@ the default browser. Run with:  python3 -m netshare gui   (or netshare.exe)
 
 import asyncio
 import json
+import logging
 import os
 import sys
 import threading
@@ -17,7 +18,10 @@ from collections import deque
 
 from . import __version__
 from .client import NetshareClient, SecurityError, usbip_attach, usbip_detach_ours
-from .common import hide_console, human_bytes, load_json, log, save_json, show_console
+from .common import (
+    config_dir, hide_console, human_bytes, is_elevated, load_json, log,
+    save_json, show_console,
+)
 from .httpd import parse_request, respond
 
 APP_CANDIDATES = [
@@ -28,10 +32,13 @@ APP_CANDIDATES = [
 
 
 class GuiApp:
-    def __init__(self, state_path: str | None = None, client_factory=None):
-        from .common import config_dir
+    def __init__(self, state_path: str | None = None, client_factory=None,
+                 usbip_factory=None, lan_manager=None):
         self.state_path = state_path or os.path.join(config_dir(), "gui.json")
+        self.server_config_path = os.path.join(config_dir(), "server.json")
         self.client_factory = client_factory  # test hook: (host,port,token,want_usb,want_lan,trust,forward_port,tap_name)
+        self.usbip_factory = usbip_factory    # test hook for the local server's usbip backend
+        self.lan_manager = lan_manager        # test hook for the local server's LAN backend
         state = load_json(self.state_path, {"profiles": []})
         self.profiles: list[dict] = state.get("profiles", [])
         self.client: NetshareClient | None = None
@@ -45,17 +52,21 @@ class GuiApp:
         self.since = 0
         self.http = None
         self.port = 0
+        self.local_server = None      # NetshareServer when running
+        self.local_ports: tuple[int, int] = (0, 0)
         self.app_path = next((p for p in APP_CANDIDATES if os.path.exists(p)), APP_CANDIDATES[1])
 
     # ----- lifecycle --------------------------------------------------------
     async def start(self):
-        self.http = await asyncio.start_server(self._handle, "127.0.0.1", 0)
+        wanted = int(os.environ.get("NETSHARE_GUI_PORT", "0") or 0)
+        self.http = await asyncio.start_server(self._handle, "127.0.0.1", wanted)
         self.port = self.http.sockets[0].getsockname()[1]
         self.log("GUI ready on http://127.0.0.1:%d/", self.port)
         return self.port
 
     async def stop(self):
         await self.disconnect()
+        await self.local_server_stop()
         if self.http:
             self.http.close()
 
@@ -176,6 +187,59 @@ class GuiApp:
         self.log("detached vhci port(s): %s", ", ".join(ports) or "none")
         return {"ok": True, "message": "detached " + ", ".join(ports) if ports else "nothing to detach"}
 
+    # ----- local server --------------------------------------------------------
+    async def local_server_start(self, port: int = 7575, web_port: int = 7580,
+                                 lan: bool = False) -> dict:
+        from .server import NetshareServer
+        if self.local_server:
+            return {"ok": False, "error": "local server already running"}
+        overrides = {
+            "bind": "0.0.0.0", "port": int(port),
+            "web": {"bind": "0.0.0.0", "port": int(web_port)},
+            "lan": {"enabled": bool(lan)},
+        }
+        usbip_mgr = self.usbip_factory() if self.usbip_factory else None
+        srv = NetshareServer(self.server_config_path, overrides,
+                             usbip_manager=usbip_mgr,
+                             lan_manager=self.lan_manager)
+        try:
+            await srv.start()
+        except OSError as e:
+            return {"ok": False, "error": f"cannot listen: {e}"}
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        self.local_server = srv
+        self.local_ports = (int(port), int(web_port))
+        self.log("local server started: tunnel :%s, web UI :%s (usbip=%s lan=%s)",
+                 port, web_port,
+                 "ready" if srv.usbip.available else "unavailable",
+                 "on" if srv.lan.active else "off")
+        if not srv.usbip.available and srv.usbip.error:
+            self.log("usb sharing: %s", srv.usbip.error)
+        return {"ok": True}
+
+    async def local_server_stop(self) -> dict:
+        if not self.local_server:
+            return {"ok": True}
+        srv, self.local_server = self.local_server, None
+        self.local_ports = (0, 0)
+        try:
+            await srv.stop()
+            self.log("local server stopped")
+            return {"ok": True}
+        except Exception as e:
+            self.log("local server stop error: %s", e)
+            return {"ok": False, "error": str(e)}
+
+    def local_server_status(self) -> dict:
+        if not self.local_server:
+            return {"running": False, "elevated": is_elevated()}
+        st = self.local_server.status()
+        st["running"] = True
+        st["elevated"] = is_elevated()
+        st["web_port"] = self.local_ports[1]
+        return st
+
     # ----- status ---------------------------------------------------------------
     def status_payload(self) -> dict:
         cli = self.client
@@ -195,6 +259,7 @@ class GuiApp:
             "tx": cli.tx if cli else 0,
             "attached": self.attached,
             "logs": list(self.logs)[-80:],
+            "local_server": self.local_server_status(),
         }
 
     # ----- http -----------------------------------------------------------------
@@ -273,6 +338,55 @@ class GuiApp:
                 respond(writer, 200, await self.attach(str(payload.get("busid", ""))))
             elif api == "detach" and method == "POST":
                 respond(writer, 200, await self.detach())
+            elif api == "local-server" and method == "GET":
+                respond(writer, 200, self.local_server_status())
+            elif api == "local-server/start" and method == "POST":
+                respond(writer, 200, await self.local_server_start(
+                    int(payload.get("port", 7575) or 7575),
+                    int(payload.get("web_port", 7580) or 7580),
+                    bool(payload.get("lan", False))))
+            elif api == "local-server/stop" and method == "POST":
+                respond(writer, 200, await self.local_server_stop())
+            elif api == "local-server/token" and method == "POST":
+                if not self.local_server:
+                    respond(writer, 400, {"ok": False, "error": "server not running"})
+                    return
+                name = str(payload.get("name", "")).strip()
+                if not name:
+                    respond(writer, 400, {"ok": False, "error": "name required"})
+                    return
+                token = self.local_server.add_token(name)
+                self.log("created token '%s' for the local server", name)
+                respond(writer, 200, {"ok": True, "name": name, "token": token})
+            elif api == "local-server/token/delete" and method == "POST":
+                if not self.local_server:
+                    respond(writer, 400, {"ok": False, "error": "server not running"})
+                    return
+                ok = self.local_server.remove_token(str(payload.get("name", "")))
+                respond(writer, 200, {"ok": ok})
+            elif api == "local-server/usb" and method == "GET":
+                if not self.local_server:
+                    respond(writer, 400, {"ok": False, "error": "server not running"})
+                    return
+                respond(writer, 200, {
+                    "ok": True,
+                    "data": {"available": self.local_server.usbip.available,
+                             "error": self.local_server.usbip.error,
+                             "devices": await self.local_server.usbip.list_devices()}})
+            elif api == "local-server/usb/bind" and method == "POST":
+                if not self.local_server:
+                    respond(writer, 400, {"ok": False, "error": "server not running"})
+                    return
+                ok, msg = await self.local_server.usbip.bind(str(payload.get("busid", "")))
+                self.log("bind %s: %s", payload.get("busid"), msg)
+                respond(writer, 200, {"ok": ok, "message": msg})
+            elif api == "local-server/usb/unbind" and method == "POST":
+                if not self.local_server:
+                    respond(writer, 400, {"ok": False, "error": "server not running"})
+                    return
+                ok, msg = await self.local_server.usbip.unbind(str(payload.get("busid", "")))
+                self.log("unbind %s: %s", payload.get("busid"), msg)
+                respond(writer, 200, {"ok": ok, "message": msg})
             else:
                 respond(writer, 404, {"error": f"no route {method} /api/{api}"})
         except (asyncio.IncompleteReadError, ConnectionResetError, asyncio.TimeoutError, OSError):
@@ -293,6 +407,15 @@ class GuiApp:
 def run_gui(no_window: bool = False, _wait=None) -> None:
     """Launch the GUI. _wait is a test seam for the blocking fallback wait."""
     wait = _wait or threading.Event().wait
+    if sys.stdout is None:  # windowed exe: keep a log file instead of a console
+        try:
+            logfile = os.path.join(config_dir(), "gui.log")
+            os.makedirs(config_dir(), exist_ok=True)
+            logging.basicConfig(handlers=[logging.FileHandler(logfile)],
+                                level=logging.INFO,
+                                format="%(asctime)s %(levelname)-7s %(name)s: %(message)s")
+        except OSError:
+            pass
     app = GuiApp()
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)

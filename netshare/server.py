@@ -4,6 +4,7 @@ import asyncio
 import ipaddress
 import json
 import os
+import platform
 import re
 import socket
 import time
@@ -146,6 +147,121 @@ class UsbipManager:
                 self._proc.terminate()
             except ProcessLookupError:
                 pass
+
+
+_BUSID_RE = re.compile(r"^\d+-\d+(\.\d+)*$")
+_USBIPD_STATE_RE = re.compile(
+    r"\s(Not shared|Shared(?: \(read-only\))?|Attached(?: \(.*\))?)$")
+
+
+class WindowsUsbipManager:
+    """Server-side usbip management on Windows via usbipd-win (dorssel/usbipd-win).
+
+    usbipd-win runs a Windows service (its own daemon on TCP/3240); we only
+    manage it: check the service port, parse `usbipd list`, bind/unbind.
+    """
+
+    def __init__(self, cfg: dict):
+        self.host = cfg.get("host", "127.0.0.1")
+        self.port = int(cfg.get("port", USBIP_PORT))
+        self.start_daemon = cfg.get("start_daemon", True)
+        self.usbipd_bin = which("usbipd") or which("usbipd.exe")
+        self.available = False
+        self.error = None
+
+    async def start(self):
+        if await self._port_open():
+            self.available = True
+            log.info("usbipd-win service listening on %s:%s", self.host, self.port)
+            return
+        if self.usbipd_bin and self.start_daemon:
+            rc, _, _ = await run(["net", "start", "usbipd"], timeout=20)
+            for _ in range(20):
+                if await self._port_open():
+                    break
+                await asyncio.sleep(0.25)
+        if await self._port_open():
+            self.available = True
+            log.info("usbipd-win service started")
+        else:
+            self.error = (
+                "usbipd-win service is not running. Install usbipd-win "
+                "(https://github.com/dorssel/usbipd-win/releases) or start it "
+                "from an admin prompt:  net start usbipd")
+            log.warning("usbip unavailable: %s", self.error)
+
+    async def _port_open(self) -> bool:
+        try:
+            r, w = await asyncio.wait_for(
+                asyncio.open_connection(self.host, self.port), timeout=1.0)
+            w.close()
+            return True
+        except (OSError, asyncio.TimeoutError):
+            return False
+
+    @staticmethod
+    def parse_list(out: str) -> list[dict]:
+        devices = []
+        for raw in out.splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            tok = line.split()
+            if not _BUSID_RE.match(tok[0]):
+                # usbipd-win 2.x style:  "  1-2: vendor : product (045e:00cb)"
+                m = re.match(
+                    r"(\d+-\d+(?:\.\d+)*):\s+(.*?)\s*\(([0-9a-fA-F]{4}:[0-9a-fA-F]{4})\)",
+                    line)
+                if m:
+                    devices.append({"busid": m.group(1), "vidpid": m.group(3).lower(),
+                                    "desc": m.group(2).strip(), "exported": False})
+                continue
+            busid = tok[0]
+            desc = line[len(busid):].strip()
+            state = ""
+            m = _USBIPD_STATE_RE.search(desc)
+            if m:
+                state = m.group(1)
+                desc = desc[:m.start()].strip()
+            vidpid = ""
+            vm = re.search(r"([0-9a-fA-F]{4}:[0-9a-fA-F]{4})", desc)
+            if vm:
+                vidpid = vm.group(1).lower()
+                desc = (desc[:vm.start()] + " " + desc[vm.end():]).strip(" -")
+            devices.append({"busid": busid, "vidpid": vidpid,
+                            "desc": desc or "USB device",
+                            "exported": state.startswith("Shared")})
+        return devices
+
+    async def list_devices(self) -> list[dict]:
+        if not self.usbipd_bin:
+            return []
+        rc, out, _ = await run([self.usbipd_bin, "list"])
+        if rc != 0:
+            return []
+        return self.parse_list(out)
+
+    async def bind(self, busid: str) -> tuple[bool, str]:
+        if not self.usbipd_bin:
+            return False, "usbipd not installed on this machine"
+        rc, out, err = await run([self.usbipd_bin, "bind", "--busid", busid])
+        return rc == 0, (err.strip() or out.strip() or f"exit {rc}")
+
+    async def unbind(self, busid: str) -> tuple[bool, str]:
+        if not self.usbipd_bin:
+            return False, "usbipd not installed on this machine"
+        rc, out, err = await run([self.usbipd_bin, "unbind", "--busid", busid])
+        return rc == 0, (err.strip() or out.strip() or f"exit {rc}")
+
+    async def stop(self):
+        pass  # service is external; we never kill it
+
+
+def make_usbip_manager(cfg: dict):
+    """Platform-appropriate usbip backend for the server."""
+    if os.name == "nt":
+        return WindowsUsbipManager(cfg)
+    return UsbipManager(cfg)
 
 
 class LanManager:
@@ -355,7 +471,7 @@ class NetshareServer:
         self.sessions: dict[str, Session] = {}
         self._srv = None
         self.started_at = 0
-        self.usbip = usbip_manager or UsbipManager(self.cfg["usbip"])
+        self.usbip = usbip_manager or make_usbip_manager(self.cfg["usbip"])
         if lan_manager is not None:
             self.lan = lan_manager
         else:
@@ -459,7 +575,7 @@ class NetshareServer:
             session.hostname = str(hello.get("hostname", "?"))[:64]
             want = hello.get("want", [])
 
-            reply = {"ok": True, "v": 1, "server": os.uname().nodename,
+            reply = {"ok": True, "v": 1, "server": platform.node() or "netshare",
                      "version": __version__,
                      "usbip": self.usbip.available}
             if "lan" in want and self.lan.active:

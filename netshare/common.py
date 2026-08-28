@@ -148,6 +148,17 @@ def human_bytes(n: float) -> str:
     return f"{n:.1f} PiB"
 
 
+def is_elevated() -> bool:
+    """True when running with admin/root rights (usbip bind needs this)."""
+    if os.name != "nt":
+        return getattr(os, "geteuid", lambda: 0)() == 0
+    try:
+        import ctypes
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+
 def setup_logging(verbose: bool = False) -> None:
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,

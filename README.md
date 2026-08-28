@@ -37,6 +37,7 @@ can join the server's network from anywhere.
 | Role | OS | Needs |
 |---|---|---|
 | Server | Linux | root, `usbip`/`usbipd` (for USB sharing), `/dev/net/tun` + `iptables` (for LAN sharing) |
+| Server | Windows | [usbipd-win](https://github.com/dorssel/usbipd-win) for USB sharing (LAN sharing needs Linux) |
 | Client (Linux) | Linux | root for attach/LAN, `usbip` tools (`vhci-hcd`) |
 | Client (Windows) | Windows 10/11 | [usbip-win2](https://github.com/vadimgrn/usbip-win2) for USB; OpenVPN TAP driver for LAN (experimental) |
 
@@ -54,25 +55,33 @@ without usbip).
 
 ## Quick start
 
-### Graphical client (recommended)
+### The app does both roles
 
-Windows: double-click **`netshare.exe`** (or run `.\netshare.exe gui`).
-Linux/macOS: `python3 -m netshare gui`.
+- **Server** — the machine that *shares* its USB devices / LAN. Run it from the
+  GUI ("This PC → Local server") or `netshare serve`.
+- **Client** — the machine that *uses* them. Add the server in the GUI and
+  connect, or use the CLI.
 
-The GUI opens a native window (Edge WebView2 / WebKit; falls back to your
-browser) where you:
+Both can run at once (a PC can share and use simultaneously).
 
-1. **Add server** — name, address, token, optional LAN toggle
-2. **Connect** — first connection shows the server's certificate fingerprint
-   to verify and pin (trust-on-first-use)
-3. **USB devices tab** — see everything plugged into the server, one-click
-   **Attach** (device appears locally), **Detach all** when done
-4. **LAN tab** — your virtual IP, server IP, subnet
-5. **Activity tab** — live traffic stats and logs
+### Graphical app (recommended)
 
-Everything is stored in `~/.config/netshare/gui.json` (profiles) and
-`client.json` (pinned fingerprints). CLI equivalents: `list-usb`, `attach`,
-`connect --lan`.
+- **Windows**: download **`netshare.exe`** (windowed — no console window) and
+  double-click it. `netshare-cli.exe` is the same program for terminals.
+- **Linux/macOS**: `python3 -m netshare gui`
+
+First run shows a short explainer, then:
+
+**To share this PC (server):** sidebar → **This PC → Local server** → set ports
+→ **Start**. Create client **Tokens**, **bind** the USB devices to share, and
+give clients your address + a token. There's also a web admin UI at
+`http://<this-pc>:7580/`.
+
+**To use another machine (client):** **+ Add server** → name, address, token →
+**Connect** (verify the certificate fingerprint once) → **USB devices** tab →
+one-click **Attach**. Enable the LAN toggle for a virtual NIC.
+
+Everything (logs included) lives inside the app; no console window is needed.
 
 ### Server
 

@@ -15,22 +15,25 @@
     font:14px/1.45 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;display:flex}
 
   /* sidebar */
-  #side{width:230px;min-width:230px;background:var(--panel);border-right:1px solid var(--border);
+  #side{width:232px;min-width:232px;background:var(--panel);border-right:1px solid var(--border);
     display:flex;flex-direction:column;padding:14px 10px}
-  #side h1{font-size:16px;margin:2px 8px 14px;display:flex;align-items:center;gap:8px}
+  #side h1{font-size:16px;margin:2px 8px 12px;display:flex;align-items:center;gap:8px}
   #side h1 b{color:var(--acc);font-weight:650}
-  .slist{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+  .label{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);
+    margin:10px 10px 6px;font-weight:600}
+  .slist{overflow-y:auto;display:flex;flex-direction:column;gap:4px}
   .srv{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;cursor:pointer;
     border:1px solid transparent;color:var(--fg)}
   .srv:hover{background:var(--panel2)}
   .srv.sel{background:var(--panel2);border-color:var(--border)}
   .srv .ico{width:26px;height:26px;border-radius:7px;background:var(--bg);border:1px solid var(--border);
-    display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--dim)}
+    display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--dim);flex:none}
   .srv .nm{flex:1;min-width:0}
   .srv .nm b{display:block;font-size:13px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .srv .nm span{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
-  .srv .dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+  .srv .dot{width:8px;height:8px;border-radius:50%;background:var(--dim);flex:none}
   .srv .dot.ok{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+  .spacer{flex:1}
   .btn{background:var(--panel2);border:1px solid var(--border);color:var(--fg);border-radius:8px;
     padding:7px 14px;font-size:13px;cursor:pointer;transition:border-color .12s,color .12s}
   .btn:hover{border-color:var(--acc);color:var(--acc)}
@@ -39,12 +42,11 @@
   .btn.danger:hover{border-color:var(--err);color:var(--err)}
   .btn.sm{padding:4px 10px;font-size:12px;border-radius:6px}
   .btn:disabled{opacity:.45;cursor:default;pointer-events:none}
-  #addsrv{margin:10px 4px 4px}
+  #addsrv{margin:8px 4px 0}
 
   /* main */
   #main{flex:1;display:flex;flex-direction:column;min-width:0}
   #top{display:flex;align-items:center;gap:12px;padding:14px 22px;border-bottom:1px solid var(--border)}
-  #top .st{display:flex;align-items:center;gap:8px;font-weight:550}
   #top .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:12px;
     font-size:12px;border:1px solid var(--border)}
   .pill .d{width:8px;height:8px;border-radius:50%}
@@ -58,6 +60,7 @@
   .banner{border:1px solid var(--err);background:#3d1418;color:#ffa198;border-radius:var(--radius);
     padding:10px 14px;margin-bottom:14px;font-size:13px;display:none}
   .banner.show{display:block}
+  .banner.info{border-color:#238636;background:#0f2417;color:#7ee2a8}
 
   .tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border)}
   .tabs button{background:none;border:none;border-bottom:2px solid transparent;color:var(--dim);
@@ -73,6 +76,7 @@
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
   .tag{display:inline-block;padding:1px 9px;border-radius:10px;font-size:11px;border:1px solid var(--border);color:var(--dim)}
   .tag.ok{color:var(--ok);border-color:#238636}
+  .tag.warn{color:var(--warn);border-color:var(--warn)}
   .empty{color:var(--dim);padding:26px;text-align:center;font-size:13px}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
   .kv b{display:block;color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:500}
@@ -83,17 +87,24 @@
   .note{color:var(--dim);font-size:12px;margin-top:10px}
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .hidden{display:none !important}
+  a{color:var(--acc)}
 
-  /* welcome / connect hero */
-  .hero{max-width:520px;margin:8vh auto 0;text-align:center}
-  .hero .big{font-size:34px;margin-bottom:6px}
-  .hero p{color:var(--dim)}
+  /* welcome */
+  .hero{max-width:640px;margin:6vh auto 0;text-align:center}
+  .hero .big{font-size:40px;margin-bottom:6px}
+  .hero p{color:var(--dim);font-size:14px}
+  .hero .cards{display:flex;gap:14px;margin-top:26px;text-align:left}
+  .hcard{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:12px;
+    padding:18px;cursor:pointer;transition:border-color .15s}
+  .hcard:hover{border-color:var(--acc)}
+  .hcard .t{font-size:15px;font-weight:600;margin-bottom:6px}
+  .hcard .d{color:var(--dim);font-size:12.5px;line-height:1.5}
 
   /* modal */
   #modal{position:fixed;inset:0;background:rgba(1,4,9,.72);display:none;align-items:center;
     justify-content:center;z-index:50}
   #modal.show{display:flex}
-  .mbox{background:var(--panel);border:1px solid var(--border);border-radius:12px;width:430px;
+  .mbox{background:var(--panel);border:1px solid var(--border);border-radius:12px;width:440px;
     max-width:92vw;padding:22px;box-shadow:0 18px 60px rgba(0,0,0,.5)}
   .mbox h2{margin:0 0 14px;font-size:16px}
   .field{margin-bottom:12px}
@@ -112,8 +123,19 @@
 
 <aside id="side">
   <h1><span style="font-size:19px">⇄</span> net<b>share</b></h1>
+  <div class="label">Servers · connect</div>
   <div class="slist" id="slist"></div>
   <button class="btn" id="addsrv">+ Add server</button>
+  <div class="label">This PC · share</div>
+  <div class="slist">
+    <div class="srv" id="localsrv">
+      <div class="ico">▣</div>
+      <div class="nm"><b>Local server</b><span id="localsub">not running</span></div>
+      <div class="dot" id="localdot"></div>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="label" id="vlabel" style="text-align:center;opacity:.6"></div>
 </aside>
 
 <div id="main">
@@ -124,6 +146,7 @@
     <button class="btn primary" id="connectbtn">Connect</button>
     <button class="btn danger hidden" id="disconnectbtn">Disconnect</button>
     <button class="btn sm hidden" id="editbtn">Edit</button>
+    <button class="btn danger hidden" id="srvstopbtn">Stop server</button>
   </div>
 
   <div id="content">
@@ -132,35 +155,105 @@
     <div id="welcome" class="hero">
       <div class="big">⇄</div>
       <h2 style="margin:0 0 8px">Share USB &amp; LAN over the internet</h2>
-      <p>Add a netshare server on the left, connect, then attach USB devices
-      or bring up a secure LAN link — all encrypted.</p>
+      <p>netshare has two roles. The <b>server</b> machine shares its USB devices and
+      network. The <b>client</b> machine uses them as if they were plugged in locally.
+      This app can do either — or both at once.</p>
+      <div class="cards">
+        <div class="hcard" id="hero-add">
+          <div class="t">🖥️ Use another machine's USB/LAN</div>
+          <div class="d">Add a remote netshare server and connect to it. Attach its USB
+          devices, join its LAN.</div>
+        </div>
+        <div class="hcard" id="hero-serve">
+          <div class="t">⌨️ Share THIS machine's USB/LAN</div>
+          <div class="d">Run the netshare server here. Other machines connect to this PC
+          and use its USB devices over the internet.</div>
+        </div>
+      </div>
     </div>
 
-    <div id="workspace" class="hidden">
-      <div class="tabs">
-        <button data-tab="usb" class="active">USB devices</button>
-        <button data-tab="lan">LAN</button>
-        <button data-tab="log">Activity</button>
+    <!-- ============ CLIENT VIEW ============ -->
+    <div id="clientview" class="hidden">
+      <div id="offlinehint" class="card hidden">
+        <h3>Not connected</h3>
+        <div class="row"><span id="hinttext" style="color:var(--dim);font-size:13px"></span></div>
+      </div>
+      <div id="workspace" class="hidden">
+        <div class="tabs">
+          <button data-tab="usb" class="active">USB devices</button>
+          <button data-tab="lan">LAN</button>
+          <button data-tab="log">Activity</button>
+        </div>
+        <section id="tab-usb">
+          <div class="card">
+            <h3>Devices on <span id="srvname"></span></h3>
+            <div id="usbwrap"><div class="empty">Loading…</div></div>
+          </div>
+        </section>
+        <section id="tab-lan" class="hidden">
+          <div class="card"><h3>LAN link</h3><div class="grid" id="langrid"></div>
+            <p class="note">The LAN link is established at connect time — enable it when
+            adding/editing the server, then reconnect.</p></div>
+        </section>
+        <section id="tab-log" class="hidden">
+          <div class="card"><h3>Recent activity</h3><div id="logbox"></div></div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ============ SERVER VIEW ============ -->
+    <div id="serverview" class="hidden">
+
+      <div id="srvsetup">
+        <div class="card" style="max-width:560px">
+          <h3>Run the netshare server on this PC</h3>
+          <div class="field"><label>Tunnel port (clients connect here)</label>
+            <input id="l_port" type="number" value="7575"></div>
+          <div class="field"><label>Web admin port</label>
+            <input id="l_webport" type="number" value="7580"></div>
+          <label class="check"><input type="checkbox" id="l_lan">
+            Enable LAN sharing (needs Linux + TAP)</label>
+          <div class="row" style="justify-content:flex-end;margin-top:6px">
+            <button class="btn primary" id="srvstartbtn">Start server</button>
+          </div>
+          <p class="note" id="reqnote"></p>
+        </div>
       </div>
 
-      <section id="tab-usb">
-        <div class="card">
-          <h3>Devices on <span id="srvname"></span></h3>
-          <div id="usbwrap"><div class="empty">Loading…</div></div>
-          <p class="note" id="usbhint"></p>
+      <div id="srvworkspace" class="hidden">
+        <div class="tabs">
+          <button data-stab="overview" class="active">Overview</button>
+          <button data-stab="susbb">USB devices</button>
+          <button data-stab="stok">Tokens</button>
+          <button data-stab="slog">Activity</button>
         </div>
-      </section>
 
-      <section id="tab-lan" class="hidden">
-        <div class="card"><h3>LAN link</h3><div class="grid" id="langrid"></div>
-          <p class="note">The LAN link is established at connect time — enable it when adding/editing
-          the server, then reconnect. With <span class="mono">default route</span> still set via CLI,
-          all traffic can flow through the server.</p></div>
-      </section>
+        <section id="stab-overview">
+          <div class="card"><h3>Server</h3><div class="grid" id="srvgrid"></div>
+            <div id="adminwarn" class="banner info" style="margin-top:12px"></div></div>
+          <div class="card"><h3>Connected clients</h3><table id="ssestable"></table></div>
+        </section>
 
-      <section id="tab-log" class="hidden">
-        <div class="card"><h3>Recent activity</h3><div id="logbox"></div></div>
-      </section>
+        <section id="stab-susbb" class="hidden">
+          <div class="card"><h3>USB devices on this machine</h3>
+            <div id="suswrap"><div class="empty">Loading…</div></div>
+            <p class="note">Bind a device to make it available to clients (they attach it
+            from their netshare app). Binding detaches it from this PC while shared.</p></div>
+        </section>
+
+        <section id="stab-stok" class="hidden">
+          <div class="card"><h3>New client token</h3>
+            <div class="row"><input type="text" id="stokname" placeholder="device name, e.g. laptop" style="width:260px">
+            <button class="btn primary" id="stokbtn">Create</button></div>
+            <p class="note">Tokens authenticate clients. Create one per device; share it
+            once — it's shown a single time.</p></div>
+          <div class="card"><h3>Tokens</h3><table id="stoktable"></table></div>
+        </section>
+
+        <section id="stab-slog" class="hidden">
+          <div class="card"><h3>Recent activity</h3><div id="logbox2" class="mono" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;max-height:380px;overflow-y:auto;white-space:pre-wrap;color:var(--dim)"></div></div>
+        </section>
+      </div>
     </div>
   </div>
 </div>
@@ -170,7 +263,7 @@
 <script>
 "use strict";
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-let profiles=[], sel=null, ST={status:"disconnected"}, usbTimer=null;
+let profiles=[], sel=null, view="client", ST={status:"disconnected",local_server:{running:false}}, LS=ST.local_server;
 
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const hum=n=>{n=+n||0;for(const u of["B","KiB","MiB","GiB"]){if(n<1024)return n.toFixed(1)+" "+u;n/=1024;}return n+" TiB";};
@@ -181,6 +274,22 @@ async function api(p,m="GET",b){
   return r.json();
 }
 
+/* ---------- views ---------- */
+function setView(v){
+  view=v;
+  $("#clientview").classList.toggle("hidden",v!=="client");
+  $("#serverview").classList.toggle("hidden",v!=="server");
+  const client = v==="client";
+  $("#connectbtn").classList.toggle("hidden", !client||ST.status==="connected"||!sel);
+  $("#disconnectbtn").classList.toggle("hidden", !client||ST.status==="disconnected");
+  $("#editbtn").classList.toggle("hidden", !client||!sel);
+  $("#srvstopbtn").classList.toggle("hidden", client||!LS.running);
+  $("#localsrv").classList.toggle("sel", v==="server");
+  renderSide();
+  if(v==="client")renderWorkspace();
+  else renderServer();
+}
+
 /* ---------- sidebar ---------- */
 function renderSide(){
   $("#slist").innerHTML = profiles.length ? "" :
@@ -188,45 +297,77 @@ function renderSide(){
   for(const p of profiles){
     const active = ST.profile===p.name && ST.status==="connected";
     const el=document.createElement("div");
-    el.className="srv"+(sel===p.name?" sel":"");
-    el.innerHTML=`<div class="ico">▣</div>
+    el.className="srv"+(view==="client"&&sel===p.name?" sel":"");
+    el.innerHTML=`<div class="ico">⇄</div>
       <div class="nm"><b>${esc(p.name)}</b><span>${esc(p.host)}:${esc(p.port)}${p.lan?" · LAN":""}</span></div>
       <div class="dot ${active?"ok":""}"></div>`;
-    el.onclick=()=>{sel=p.name;renderSide();renderWorkspace();};
+    el.onclick=()=>{sel=p.name;setView("client");};
     el.ondblclick=()=>connect();
     $("#slist").appendChild(el);
   }
-  const has = sel && profiles.some(p=>p.name===sel);
-  $("#connectbtn").classList.toggle("hidden", ST.status==="connected"||!has);
-  $("#disconnectbtn").classList.toggle("hidden", ST.status!=="connected"&&ST.status!=="connecting"&&ST.status!=="needs_trust");
-  $("#editbtn").classList.toggle("hidden", !has);
+  $("#localdot").className="dot"+(LS.running?" ok":"");
+  $("#localsub").textContent = LS.running ? `running :${LS.port}` : "not running";
+  $("#localsrv").onclick=()=>setView("server");
+  $("#vlabel").textContent = "v"+(ST.version||"");
+  const client = view==="client";
+  $("#connectbtn").classList.toggle("hidden", !client||ST.status==="connected"||!sel);
+  $("#disconnectbtn").classList.toggle("hidden", !client||ST.status==="disconnected");
+  $("#editbtn").classList.toggle("hidden", !client||!sel);
+  $("#srvstopbtn").classList.toggle("hidden", client||!LS.running);
 }
 
 /* ---------- header ---------- */
 function renderTop(){
   const map={connected:["ok","Connected"],connecting:["warn","Connecting…"],
     needs_trust:["warn","Confirm server"],error:["err","Error"],disconnected:["off","Disconnected"]};
-  const [cls,txt]=map[ST.status]||["off","?"];
-  $("#stpill").className="pill "+cls; $("#sttext").textContent=txt+(ST.server_name&&ST.status==="connected"?" · "+ST.server_name:"");
-  $("#stats").textContent = ST.status==="connected"
-    ? `${up(ST.uptime)} · ↓${hum(ST.rx)} ↑${hum(ST.tx)}${ST.lan_local_ip?" · "+ST.lan_local_ip:""}` : "";
+  const pill=$("#stpill"), txt=$("#sttext");
+  if(view==="client"){
+    const [cls,t]=map[ST.status]||["off","?"];
+    pill.className="pill "+cls;
+    txt.textContent=t+(ST.server_name&&ST.status==="connected"?" · "+ST.server_name:"");
+    $("#stats").textContent = ST.status==="connected"
+      ? `${up(ST.uptime)} · ↓${hum(ST.rx)} ↑${hum(ST.tx)}${ST.lan_local_ip?" · "+ST.lan_local_ip:""}` : "";
+  }else{
+    pill.className="pill "+(LS.running?"ok":"off");
+    txt.textContent=LS.running?`Server running :${LS.port}`:"Server stopped";
+    $("#stats").textContent=LS.running?`web admin :${LS.web_port} · ${(LS.sessions||[]).length} client(s)`:"";
+  }
   const b=$("#banner");
-  if(ST.error){b.textContent=ST.error;b.classList.add("show");}else b.classList.remove("show");
+  if(view==="client"&&ST.error){b.textContent=ST.error;b.classList.add("show");b.classList.remove("info");}
+  else b.classList.remove("show");
 }
 
-/* ---------- workspace ---------- */
+/* ---------- welcome ---------- */
+function renderWelcome(){
+  const show = !LS.running && profiles.length===0;
+  $("#welcome").classList.toggle("hidden",!show);
+}
+$("#hero-add").onclick=()=>serverModal(null);
+$("#hero-serve").onclick=()=>setView("server");
+
+/* ---------- client workspace ---------- */
 function renderWorkspace(){
-  const show = ST.status==="connected";
-  $("#workspace").classList.toggle("hidden",!show);
-  $("#welcome").classList.toggle("hidden",show||profiles.length>0);
-  if(show){
+  const show = view==="client";
+  $("#clientview").classList.toggle("hidden",!show);
+  if(!show)return;
+  renderWelcome();
+  const conn = ST.status==="connected";
+  $("#workspace").classList.toggle("hidden",!conn);
+  const hint=$("#offlinehint");
+  hint.classList.toggle("hidden", conn||!sel);
+  if(!conn&&sel){
+    $("#hinttext").textContent = ST.status==="error" ? "Connection failed — see the red banner above."
+      : ST.status==="needs_trust" ? "Waiting for you to confirm the server certificate…"
+      : `Select “Connect” to reach ${sel}.`;
+  }
+  if(conn){
     $("#srvname").textContent = ST.profile||"";
-    renderLan(); renderLog();
+    renderLan();renderLog();
   }
 }
 
 async function refreshUsb(){
-  if(ST.status!=="connected")return;
+  if(view!=="client"||ST.status!=="connected")return;
   const r=await api("usb").catch(()=>null);
   if(!r||!r.ok){$("#usbwrap").innerHTML=`<div class="empty">${esc(r&&r.error||"unavailable")}</div>`;return;}
   const d=r.data||{}, devs=d.devices||[];
@@ -234,30 +375,28 @@ async function refreshUsb(){
     $("#usbwrap").innerHTML=`<div class="empty">USB sharing is unavailable on this server:<br>${esc(d.error||"?")}</div>`;return;
   }
   $("#usbwrap").innerHTML = devs.length ? `<table>
-    <tr><th></th><th>busid</th><th>device</th><th>status</th><th></th></tr>`+
+    <tr><th>busid</th><th>device</th><th>status</th><th></th></tr>`+
     devs.map(x=>{
       const att=(ST.attached||[]).includes(x.busid);
       return `<tr>
-        <td><span class="tag">⎈</span></td>
         <td class="mono">${esc(x.busid)}</td>
         <td>${esc(x.desc)} <span class="mono" style="color:var(--dim)">${esc(x.vidpid)}</span></td>
         <td>${x.exported?'<span class="tag ok">exported</span>':'<span class="tag">not exported</span>'}</td>
         <td>${att?'<span class="tag ok">attached ✓</span>'
-          :`<button class="btn sm" onclick="attach('${esc(x.busid)}')" ${x.exported?"":"title='Server must export (bind) it first'"}>Attach</button>`}</td>
+          :`<button class="btn sm" onclick="attach('${esc(x.busid)}')" ${x.exported?"":"disabled title='The server must bind it first (its app → USB devices)'"}>Attach</button>`}</td>
       </tr>`;}).join("")+`</table>
-      <p class="row" style="margin-top:12px">
-        <button class="btn sm danger" onclick="detachAll()">Detach all</button>
-        <span class="note">Non-exported devices must be bound on the server first (web UI → USB).</span></p>`
+      <p class="row" style="margin-top:12px"><button class="btn sm danger" onclick="detachAll()">Detach all</button>
+      <span class="note">“Not exported” devices must be bound on the server first.</span></p>`
     : `<div class="empty">No USB devices found on the server</div>`;
 }
 
 window.attach=async busid=>{
   const r=await api("attach","POST",{busid});
-  toast(r.ok?`Attached ${busid}`:`Attach failed: ${r.message||"?"}`,!r.ok);
+  flash(r.ok?`Attached ${busid}`:`Attach failed: ${r.message||"?"}`,!r.ok);
   refreshUsb();
 };
 window.detachAll=async()=>{
-  const r=await api("detach","POST");toast(r.message||"detached");refreshUsb();
+  const r=await api("detach","POST");flash(r.message||"detached");refreshUsb();
 };
 
 function renderLan(){
@@ -271,10 +410,112 @@ function renderLan(){
 }
 function renderLog(){$("#logbox").textContent=(ST.logs||[]).join("\n");}
 
+/* ---------- local server view ---------- */
+function renderServer(){
+  if(view!=="server")return;
+  renderWelcome();
+  $("#srvsetup").classList.toggle("hidden",!!LS.running);
+  $("#srvworkspace").classList.toggle("hidden",!LS.running);
+  if(!LS.running)return;
+  const u=LS.usbip||{}, l=LS.lan||{}, fp=LS.fingerprint||"";
+  $("#srvgrid").innerHTML=
+    kv("tunnel",`:<span class="mono">${esc(LS.port)}</span> — clients connect here`)+
+    kv("web admin",`<a href="http://127.0.0.1:${esc(LS.web_port)}/" target="_blank">http://127.0.0.1:${esc(LS.web_port)}/</a>`)+
+    kv("usb sharing",u.available?'<span class="tag ok">ready</span>':`<span class="tag warn">unavailable</span>`)+
+    kv("lan sharing",l.active?`<span class="tag ok">${esc(l.mode||"nat")}</span>`:'<span class="tag">off</span>')+
+    (l.subnet?kv("lan subnet",`<span class="mono">${esc(l.subnet)}</span>`):"")+
+    kv("certificate",`<span class="mono">${esc(fp.slice(0,24))}…</span>`);
+  const w=$("#adminwarn");
+  if(!LS.elevated){
+    w.innerHTML="ℹ️ Not running elevated: binding USB devices may require running netshare as Administrator.";
+    w.classList.add("show");
+  } else w.classList.remove("show");
+  if(u.error){
+    w.innerHTML=`⚠️ USB sharing unavailable: ${esc(u.error)}`;w.classList.add("show");
+  }
+  const s=LS.sessions||[];
+  $("#ssestable").innerHTML=s.length?
+    `<tr><th>client</th><th>token</th><th>address</th><th>lan ip</th><th>down</th><th>up</th></tr>`+
+    s.map(x=>`<tr><td>${esc(x.hostname)}</td><td>${esc(x.token)}</td><td>${esc(x.addr)}</td>
+      <td>${esc(x.lan||"–")}</td><td>${hum(x.rx)}</td><td>${hum(x.tx)}</td></tr>`).join("")
+    :`<tr><td style="color:var(--dim)">no clients connected yet — create a token and add this PC
+        (${location.hostname||"this machine"}) in the client's netshare app</td></tr>`;
+  $("#logbox2").textContent=(ST.logs||[]).join("\n");
+  refreshLocalUsb();refreshLocalTokens();
+}
+function kv(k,v){return `<div class="kv"><b>${k}</b><span>${v}</span></div>`;}
+
+async function refreshLocalUsb(){
+  if(view!=="server"||!LS.running)return;
+  const r=await api("local-server/usb").catch(()=>null);
+  if(!r||!r.ok)return;
+  const d=r.data||{}, devs=d.devices||[];
+  $("#suswrap").innerHTML=!d.available
+    ?`<div class="empty" style="color:var(--warn)">${esc(d.error||"usbip backend unavailable")}</div>`
+    :devs.length?`<table><tr><th>busid</th><th>device</th><th>shared</th><th></th></tr>`+
+      devs.map(x=>`<tr><td class="mono">${esc(x.busid)}</td>
+        <td>${esc(x.desc)} <span class="mono" style="color:var(--dim)">${esc(x.vidpid)}</span></td>
+        <td>${x.exported?'<span class="tag ok">shared</span>':'<span class="tag">private</span>'}</td>
+        <td><button class="btn sm" onclick="lsBind('${esc(x.busid)}',${x.exported})">${x.exported?"unbind":"bind"}</button></td>
+      </tr>`).join("")+`</table>`
+    :`<div class="empty">No USB devices found on this machine</div>`;
+}
+window.lsBind=async(busid,exported)=>{
+  const r=await api("local-server/usb/"+(exported?"unbind":"bind"),"POST",{busid});
+  flash(r.ok?(exported?`unbound ${busid}`:`bound ${busid}`):`failed: ${r.message||"?"}`,!r.ok);
+  refreshLocalUsb();
+};
+
+async function refreshLocalTokens(){
+  if(view!=="server"||!LS.running)return;
+  const st=await api("local-server").catch(()=>null);
+  if(!st||!st.running)return;
+  const toks=(st.tokens||[]);
+  $("#stoktable").innerHTML=toks.length?
+    `<tr><th>name</th><th>created</th><th></th></tr>`+
+    toks.map(t=>`<tr><td>${esc(t.name)}</td><td>${esc(t.created)}</td>
+      <td><button class="btn sm danger" onclick="lsDelTok('${esc(t.name)}')">remove</button></td></tr>`).join("")
+    :`<tr><td style="color:var(--dim)">no tokens yet</td></tr>`;
+}
+window.lsDelTok=async name=>{
+  const r=await api("local-server/token/delete","POST",{name});
+  flash(r.ok?"removed":"not found",!r.ok);refreshLocalTokens();
+};
+$("#stokbtn").onclick=async()=>{
+  const name=$("#stokname").value.trim();if(!name)return;
+  const r=await api("local-server/token","POST",{name});
+  if(r.ok){
+    showModal(`<h2>Token created</h2>
+      <p style="color:var(--dim);font-size:13px">Give this to the client device — shown only once:</p>
+      <div class="fp" style="color:var(--ok)">${esc(r.token)}</div>
+      <div class="row" style="justify-content:flex-end">
+        <button class="btn" onclick="copyTok('${esc(r.token)}')">Copy</button>
+        <button class="btn primary" onclick="closeModal()">Done</button></div>`);
+    $("#stokname").value="";refreshLocalTokens();
+  } else flash(r.error||"failed",true);
+};
+window.copyTok=async t=>{try{await navigator.clipboard.writeText(t);flash("copied to clipboard");}catch(e){}};
+
+$("#srvstartbtn").onclick=async()=>{
+  const r=await api("local-server/start","POST",{
+    port:+$("#l_port").value||7575, web_port:+$("#l_webport").value||7580,
+    lan:$("#l_lan").checked});
+  if(!r.ok){flash(r.error||"failed to start",true);return;}
+  ST=await api("status");LS=ST.local_server;
+  setView("server");
+};
+$("#srvstopbtn").onclick=async()=>{
+  await api("local-server/stop","POST");
+  ST=await api("status");LS=ST.local_server;
+  setView("server");
+};
+
 /* ---------- polling ---------- */
 async function tick(){
   try{ST=await api("status");}catch(e){return;}
+  LS=ST.local_server||{running:false};
   renderSide();renderTop();renderWorkspace();
+  if(view==="server")renderServer();
 }
 setInterval(tick,2000);
 
@@ -285,8 +526,8 @@ async function connect(trust=false){
   if(ST.status==="needs_trust"){
     showModal(`<h2>Trust this server?</h2>
       <p style="color:var(--dim);font-size:13px">First contact with <b>${esc(sel)}</b>.
-      Verify this certificate fingerprint with the server operator
-      (shown in the server web UI or its logs):</p>
+      Verify this certificate fingerprint with whoever runs it
+      (their netshare app → server overview):</p>
       <div class="fp">${esc(ST.needed_fingerprint)}</div>
       <div class="row" style="justify-content:flex-end">
         <button class="btn" onclick="closeModal()">Cancel</button>
@@ -297,7 +538,7 @@ async function connect(trust=false){
   if(ST.status==="connected")refreshUsb();
 }
 $("#connectbtn").onclick=()=>connect();
-$("#disconnectbtn").onclick=async()=>{await api("disconnect","POST");ST=await api("status");
+$("#disconnectbtn").onclick=async()=>{await api("disconnect","POST");ST=await api("status");LS=ST.local_server;
   renderSide();renderTop();renderWorkspace();};
 $("#editbtn").onclick=()=>serverModal(profiles.find(p=>p.name===sel));
 
@@ -325,7 +566,7 @@ window.saveProfile=async isNew=>{
     port:+$("#f_port").value||7575,token:$("#f_token").value.trim(),lan:$("#f_lan").checked};
   if(!body.name||!body.host){alert("Name and address are required");return;}
   await api("profiles","POST",body);
-  closeModal();await load();sel=body.name;renderSide();
+  closeModal();await load();sel=body.name;setView("client");
 };
 window.delProfile=async name=>{
   if(!confirm(`Remove server "${name}"?`))return;
@@ -340,23 +581,34 @@ $("#modal").addEventListener("mousedown",e=>{if(e.target.id==="modal")closeModal
 
 /* ---------- toast ---------- */
 let th;
-function toast(msg,err){let t=$("#banner");if(err){t.textContent=msg;t.classList.add("show");
-    clearTimeout(th);th=setTimeout(()=>t.classList.remove("show"),4000);}}
+function flash(msg,err){const t=$("#banner");
+  t.textContent=msg;t.classList.add("show");t.classList.toggle("info",!err);
+  clearTimeout(th);th=setTimeout(()=>t.classList.remove("show"),4000);}
 
 /* ---------- tabs ---------- */
-$$(".tabs button").forEach(b=>b.onclick=()=>{
-  $$(".tabs button").forEach(x=>x.classList.toggle("active",x===b));
+$$(".tabs button[data-tab]").forEach(b=>b.onclick=()=>{
+  $$(".tabs button[data-tab]").forEach(x=>x.classList.toggle("active",x===b));
   for(const id of["usb","lan","log"])$("#tab-"+id).classList.toggle("hidden",id!==b.dataset.tab);
   if(b.dataset.tab==="usb")refreshUsb();
 });
-setInterval(()=>{if(ST.status==="connected"&&!$("#tab-usb").classList.contains("hidden"))refreshUsb();},3000);
+$$(".tabs button[data-stab]").forEach(b=>b.onclick=()=>{
+  $$(".tabs button[data-stab]").forEach(x=>x.classList.toggle("active",x===b));
+  for(const id of["overview","susbb","stok","slog"])$("#stab-"+id).classList.toggle("hidden",id!==b.dataset.stab);
+  if(b.dataset.stab==="susbb")refreshLocalUsb();
+  if(b.dataset.stab==="stok")refreshLocalTokens();
+});
+setInterval(()=>{if(view==="client"&&ST.status==="connected"&&!$("#tab-usb").classList.contains("hidden"))refreshUsb();},3000);
+setInterval(()=>{if(view==="server"&&LS.running&&!$("#stab-susbb").classList.contains("hidden"))refreshLocalUsb();},3000);
 
 /* ---------- boot ---------- */
 async function load(){profiles=(await api("profiles")).profiles||[];}
 (async()=>{
   await load();
-  if(!sel&&profiles.length)sel=profiles[0].name;
-  await tick();renderSide();
+  if(profiles.length)sel=profiles[0].name;
+  await tick();
+  renderSide();
+  if(!profiles.length)  // land new users on the explainer
+    $("#welcome").classList.remove("hidden");
 })();
 </script>
 </body>
