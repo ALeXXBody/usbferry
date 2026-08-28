@@ -195,6 +195,17 @@ only what you share; issue per-person tokens and revoke to cut access.
 
 ## Troubleshooting
 
+- **"Windows protected your PC" when opening usbferry.exe** — that's
+  SmartScreen, not a virus detection. It appears because the exe is
+  **unsigned** (no code-signing certificate yet) and newly downloaded.
+  To run it: click **More info → Run anyway**. You only have to do this
+  once per download. To verify the file first, compare its SHA-256 against
+  `checksums.txt` in the release:
+  `Get-FileHash .\usbferry.exe -Algorithm SHA256`
+  Antivirus false positives are also common with Python-packaged exes; if
+  your AV quarantines it, restore/allow-list it. A code-signing certificate
+  (Azure Trusted Signing ~$10/mo, Certum open-source ~€69/yr with a public
+  repo, OV ~$100-300/yr) would remove the warning — PRs/ suggestions welcome.
 - **Window flashes and closes on Windows** → fixed in v0.2.1: any startup
   error now shows a dialog and is written to
   `<home>\.config\usbferry\usbferry-crash.log`. Check `.\usbferry.exe --version`

@@ -36,9 +36,11 @@ jobs:
         shell: pwsh
         run: |
           pip install pyinstaller pywebview pythonnet cryptography
+          python tools/make_version_info.py
           # GUI exe: windowed (no console window at all), GUI is the default command
           pyinstaller --onefile --windowed --name usbferry `
             --icon assets/usbferry.ico `
+            --version-file build/version-info.txt `
             --collect-all webview `
             --add-data "web/index.html;web" `
             --add-data "web/app.html;web" `
@@ -46,10 +48,20 @@ jobs:
           # CLI exe: console, for terminal users (all subcommands)
           pyinstaller --onefile --console --name usbferry-cli `
             --icon assets/usbferry.ico `
+            --version-file build/version-info.txt `
             --collect-all webview `
             --add-data "web/index.html;web" `
             --add-data "web/app.html;web" `
             usbferry-cli.py
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $hashes = Get-FileHash -Algorithm SHA256 dist\*.exe | ForEach-Object {
+            "$($_.Hash)  $(Split-Path -Leaf $_.Path)"
+          }
+          $hashes | Out-File -Encoding ascii dist\checksums.txt
+          Get-Content dist\checksums.txt
 
       - name: Smoke test
         shell: pwsh
@@ -86,6 +98,7 @@ jobs:
           path: |
             dist/usbferry.exe
             dist/usbferry-cli.exe
+            dist/checksums.txt
 
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/')
@@ -94,3 +107,4 @@ jobs:
           files: |
             dist/usbferry.exe
             dist/usbferry-cli.exe
+            dist/checksums.txt
