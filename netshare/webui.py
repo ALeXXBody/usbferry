@@ -7,12 +7,16 @@ tunnel (Authorization: Bearer <token>). Meant for managing a netshare server.
 import asyncio
 import json
 import os
+import sys
 
 from .common import log
 
 MAX_BODY = 1 << 20
 INDEX_CANDIDATES = [
+    # PyInstaller onefile bundles unpack to sys._MEIPASS
+    os.path.join(getattr(sys, "_MEIPASS", ""), "web", "index.html"),
     os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "index.html"),
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[0] or "."))), "web", "index.html"),
     "/usr/share/netshare/web/index.html",
 ]
 

@@ -81,6 +81,20 @@ interfaces automatically when iptables is available).
 
 ### Client
 
+**Windows (no Python needed):**
+
+1. Download **`netshare.exe`** from [Releases](../../releases) (built by CI, self-contained)
+2. Install [usbip-win2](https://github.com/vadimgrn/usbip-win2/releases) once (the Windows USB/IP client driver; a restore point is recommended before driver installs)
+3. PowerShell **as Administrator**:
+
+```powershell
+.\netshare.exe list-usb myserver.example.com --token ns_XXX --trust
+.\netshare.exe attach myserver.example.com -b 1-2 --token ns_XXX --trust   # Ctrl-C detaches
+.\netshare.exe connect myserver.example.com --token ns_XXX --trust --lan   # virtual NIC (needs TAP driver)
+```
+
+**Linux:**
+
 ```bash
 # see what's plugged into the server
 python3 -m netshare list-usb myserver.example.com --token ns_XXX --trust

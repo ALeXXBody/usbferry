@@ -1,0 +1,41 @@
+name: build-windows
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build netshare.exe
+        shell: pwsh
+        run: |
+          pip install pyinstaller
+          pyinstaller --onefile --console --name netshare `
+            --add-data "web/index.html;web" `
+            netshare-cli.py
+
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          dist\netshare.exe --version
+          dist\netshare.exe --help
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: netshare-windows
+          path: dist/netshare.exe
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/netshare.exe
