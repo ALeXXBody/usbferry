@@ -12,10 +12,10 @@ import uuid
 
 from . import __version__, certutil
 from .common import (
-    CH_CONTROL, DEFAULT_PORT, DEFAULT_WEB_PORT, FT_CLOSE, FT_CTRL, FT_DATA,
-    FT_OPEN, FT_PING, FT_PONG, MAX_HELLO, ProtocolError, USBIP_PORT,
-    config_dir, constant_time_eq, human_bytes, is_elevated, load_json, log,
-    new_token, read_frame, run, save_json,
+    CH_CONTROL, CREATE_NO_WINDOW, DEFAULT_PORT, DEFAULT_WEB_PORT, FT_CLOSE,
+    FT_CTRL, FT_DATA, FT_OPEN, FT_PING, FT_PONG, MAX_HELLO, ProtocolError,
+    USBIP_PORT, config_dir, constant_time_eq, human_bytes, is_elevated,
+    load_json, log, new_token, read_frame, run, save_json,
     token_hash, which,
 )
 from .tapw import KernelTap, TapClosed, TapError
@@ -49,6 +49,8 @@ class UsbipManager:
                         self.usbipd_bin,
                         stdout=asyncio.subprocess.DEVNULL,
                         stderr=asyncio.subprocess.DEVNULL,
+                        **({"creationflags": CREATE_NO_WINDOW}
+                           if os.name == "nt" else {}),
                     )
                     await asyncio.sleep(0.5)
                 except OSError as e:

@@ -114,13 +114,22 @@ def save_json(path: str, data) -> None:
         json.dump(data, f, indent=2)
 
 
+# Windows: subprocesses of a windowed app each get their own console window
+# unless this flag is passed (a flashing black box every `usbipd list` poll).
+CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
+
+
 async def run(cmd, timeout: float = 15.0):
     """Run a command, return (rc, stdout, stderr) as text. Never raises."""
+    kwargs = {}
+    if os.name == "nt":
+        kwargs["creationflags"] = CREATE_NO_WINDOW
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            **kwargs,
         )
     except (FileNotFoundError, PermissionError, OSError) as e:
         return 127, "", str(e)

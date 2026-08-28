@@ -314,9 +314,76 @@ async def test_running_service_token_reload():
     check("removal propagates", running.verify_token(token) is None)
 
 
+async def test_no_window_subprocesses():
+    """Regression: on Windows every subprocess of the windowed exe must be
+    spawned with CREATE_NO_WINDOW, or each usbipd list/sc query poll flashes
+    a console window."""
+    print("[subprocess windows]")
+    import asyncio as aio
+    from usbferry import common
+
+    captured = []
+    orig = aio.create_subprocess_exec
+
+    async def fake_exec(*cmd, **kwargs):
+        captured.append(kwargs)
+
+        class P:
+            returncode = 0
+
+            async def communicate(self):
+                return b"", b""
+        return P()
+
+    aio.create_subprocess_exec = fake_exec
+    try:
+        await common.run(["echo", "hi"])
+    finally:
+        aio.create_subprocess_exec = orig
+    if os.name == "nt":
+        check("run() passes CREATE_NO_WINDOW on Windows",
+              captured and captured[0].get("creationflags") == common.CREATE_NO_WINDOW,
+              str(captured))
+    else:
+        check("run() passes no creationflags on posix",
+              captured and "creationflags" not in captured[0], str(captured))
+
+    # certutil openssl path
+    import subprocess as sp
+    orig_call = sp.call
+    cc = {}
+
+    def fake_call(cmd, **kwargs):
+        cc.update(kwargs)
+        return 1  # pretend openssl failed -> caller falls back
+
+    sp.call = fake_call
+    try:
+        from usbferry import certutil
+        try:
+            certutil._generate_openssl("x.crt", "x.key")
+        except RuntimeError:
+            pass  # fake openssl "failed"; we only care about the kwargs
+    finally:
+        sp.call = orig_call
+    if os.name == "nt":
+        check("certutil passes CREATE_NO_WINDOW on Windows",
+              cc.get("creationflags") == common.CREATE_NO_WINDOW, str(cc))
+    else:
+        check("certutil passes no creationflags on posix",
+              "creationflags" not in cc, str(cc))
+
+    # server.py usbipd daemon spawn path
+    src = open(os.path.join(ROOT, "usbferry", "server.py")).read()
+    check("server daemon spawn uses the flag",
+          "CREATE_NO_WINDOW" in src and "creationflags" in src)
+
+
 async def main():
     print(f"\nusbferry local-server tests (tmp {TMP})\n")
     test_parser()
+    test_msi_picker()
+    await test_no_window_subprocesses()
     await test_local_server()
     await test_running_service_token_reload()
     print(f"\n{'='*46}\n{len(PASS)} passed, {len(FAIL)} failed")

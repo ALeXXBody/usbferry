@@ -30,13 +30,16 @@ def peer_fingerprint(transport: ssl.SSLObject | ssl.SSLSocket) -> str:
 
 
 def _generate_openssl(cert: str, key: str) -> None:
+    kwargs = {}
+    if os.name == "nt":
+        kwargs["creationflags"] = 0x08000000  # CREATE_NO_WINDOW
     rc = subprocess.call([
         "openssl", "req", "-x509", "-newkey", "ec",
         "-pkeyopt", "ec_paramgen_curve:prime256v1",
         "-keyout", key, "-out", cert,
         "-days", "3650", "-nodes",
         "-subj", "/CN=usbferry",
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kwargs)
     if rc != 0:
         raise RuntimeError(f"openssl exited with {rc}")
 
