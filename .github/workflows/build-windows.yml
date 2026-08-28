@@ -37,28 +37,30 @@ jobs:
         run: |
           pip install pyinstaller pywebview pythonnet
           # GUI exe: windowed (no console window at all), GUI is the default command
-          pyinstaller --onefile --windowed --name netshare `
+          pyinstaller --onefile --windowed --name usbferry `
+            --icon assets/usbferry.ico `
             --collect-all webview `
             --add-data "web/index.html;web" `
             --add-data "web/app.html;web" `
-            netshare-cli.py
+            usbferry-cli.py
           # CLI exe: console, for terminal users (all subcommands)
-          pyinstaller --onefile --console --name netshare-cli `
+          pyinstaller --onefile --console --name usbferry-cli `
+            --icon assets/usbferry.ico `
             --collect-all webview `
             --add-data "web/index.html;web" `
             --add-data "web/app.html;web" `
-            netshare-cli.py
+            usbferry-cli.py
 
       - name: Smoke test
         shell: pwsh
         run: |
-          dist\netshare-cli.exe --version
-          dist\netshare-cli.exe --help
+          dist\usbferry-cli.exe --version
+          dist\usbferry-cli.exe --help
 
           # windowed GUI exe: must start, serve its API, and stay alive
-          # (NETSHARE_GUI_PORT pins the local API port for probing)
-          $env:NETSHARE_GUI_PORT = "7590"
-          $p = Start-Process -FilePath "dist\netshare.exe" -PassThru
+          # (USBFERRY_GUI_PORT pins the local API port for probing)
+          $env:USBFERRY_GUI_PORT = "7590"
+          $p = Start-Process -FilePath "dist\usbferry.exe" -PassThru
           Start-Sleep -Seconds 12
           if ($p.HasExited) { throw "windowed GUI exe exited early" }
           try {
@@ -66,11 +68,11 @@ jobs:
             if ($r.StatusCode -ne 200) { throw "GUI api status $($r.StatusCode)" }
           } catch { throw "GUI api unreachable: $_" }
           Stop-Process -Id $p.Id -Force
-          Remove-Item Env:NETSHARE_GUI_PORT
+          Remove-Item Env:USBFERRY_GUI_PORT
           "windowed GUI smoke OK"
 
           # console exe GUI mode: prints its URL and stays alive
-          $p2 = Start-Process -FilePath "dist\netshare-cli.exe" -ArgumentList "gui","--no-window" -PassThru -RedirectStandardOutput "gui-out.txt" -RedirectStandardError "gui-err.txt"
+          $p2 = Start-Process -FilePath "dist\usbferry-cli.exe" -ArgumentList "gui","--no-window" -PassThru -RedirectStandardOutput "gui-out.txt" -RedirectStandardError "gui-err.txt"
           Start-Sleep -Seconds 10
           if ($p2.HasExited) { Get-Content gui-out.txt, gui-err.txt; throw "cli gui exited early" }
           $out = Get-Content gui-out.txt -Raw
@@ -80,15 +82,15 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: netshare-windows
+          name: usbferry-windows
           path: |
-            dist/netshare.exe
-            dist/netshare-cli.exe
+            dist/usbferry.exe
+            dist/usbferry-cli.exe
 
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/netshare.exe
-            dist/netshare-cli.exe
+            dist/usbferry.exe
+            dist/usbferry-cli.exe

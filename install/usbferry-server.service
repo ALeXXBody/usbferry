@@ -1,0 +1,17 @@
+[Unit]
+Description=usbferry server (USB + LAN over encrypted IP tunnel)
+Documentation=https://github.com/ALeXXBody/usbferry
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/usbferry
+Environment=USBFERRY_CONFIG_DIR=/etc/usbferry
+ExecStart=/opt/usbferry/.venv/bin/usbferry serve
+Restart=on-failure
+RestartSec=3
+# root required: usbip bind/unbind, TAP interface, iptables NAT rules
+
+[Install]
+WantedBy=multi-user.target

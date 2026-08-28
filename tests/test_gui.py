@@ -11,14 +11,14 @@ TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(TESTS_DIR)
 sys.path.insert(0, ROOT)
 
-TMP = tempfile.mkdtemp(prefix="netshare-gui-")
-os.environ["NETSHARE_CONFIG_DIR"] = TMP
+TMP = tempfile.mkdtemp(prefix="usbferry-gui-")
+os.environ["USBFERRY_CONFIG_DIR"] = TMP
 
 from test_loopback import FakeUsbip, echo_server, http_api  # noqa: E402
-from netshare.client import NetshareClient  # noqa: E402
-from netshare.gui import GuiApp, run_gui  # noqa: E402
-from netshare.server import LanManager, NetshareServer  # noqa: E402
-from netshare.tapw import pipe_tap_pair  # noqa: E402
+from usbferry.client import UsbferryClient  # noqa: E402
+from usbferry.gui import GuiApp, run_gui  # noqa: E402
+from usbferry.server import LanManager, UsbferryServer  # noqa: E402
+from usbferry.tapw import pipe_tap_pair  # noqa: E402
 
 PASS, FAIL = [], []
 
@@ -35,12 +35,12 @@ async def gui_api(port, path, method="GET", body=None):
 
 
 async def main():
-    print(f"\nnetshare GUI tests (tmp {TMP})\n")
+    print(f"\nusbferry GUI tests (tmp {TMP})\n")
     echo_srv, echo_port = await echo_server()
     server_tap, _ = pipe_tap_pair()
     lan = LanManager({"mode": "nat", "subnet": "10.77.0.0/24", "configure": False},
                      os.path.join(TMP, "state.json"), tap_factory=lambda: server_tap)
-    srv = NetshareServer(os.path.join(TMP, "server.json"),
+    srv = UsbferryServer(os.path.join(TMP, "server.json"),
                          usbip_manager=FakeUsbip({"host": "127.0.0.1", "port": echo_port}),
                          lan_manager=lan)
     srv.cfg.update({"bind": "127.0.0.1", "port": 0,
@@ -55,7 +55,7 @@ async def main():
     def client_factory(host, port_, token_, want_usb, want_lan, trust, fwd, tap):
         # inject a pipe TAP so this works without /dev/net/tun
         a, _b = pipe_tap_pair()
-        return NetshareClient(host, port_, token_, want_usb=want_usb, want_lan=want_lan,
+        return UsbferryClient(host, port_, token_, want_usb=want_usb, want_lan=want_lan,
                               trust=trust, forward_port=fwd, tap_name=tap,
                               tap_factory=lambda: a)
 

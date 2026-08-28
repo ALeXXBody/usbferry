@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""netshare loopback test suite.
+"""usbferry loopback test suite.
 
 Runs the real server + client in-process over TLS on 127.0.0.1 with:
   - a dummy TCP server standing in for usbipd (echo, verifies byte fidelity)
@@ -21,17 +21,17 @@ TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(TESTS_DIR)
 sys.path.insert(0, ROOT)
 
-TMP = tempfile.mkdtemp(prefix="netshare-test-")
-os.environ["NETSHARE_CONFIG_DIR"] = TMP
+TMP = tempfile.mkdtemp(prefix="usbferry-test-")
+os.environ["USBFERRY_CONFIG_DIR"] = TMP
 
-from netshare import certutil  # noqa: E402
-from netshare.client import NetshareClient, SecurityError  # noqa: E402
-from netshare.common import (  # noqa: E402
+from usbferry import certutil  # noqa: E402
+from usbferry.client import UsbferryClient, SecurityError  # noqa: E402
+from usbferry.common import (  # noqa: E402
     CH_CONTROL, FT_CLOSE, FT_CTRL, FT_DATA, FT_OPEN, FT_PING, frame,
     jframe, read_frame, send_frame,
 )
-from netshare.server import LanManager, NetshareServer, UsbipManager  # noqa: E402
-from netshare.tapw import pipe_tap_pair  # noqa: E402
+from usbferry.server import LanManager, UsbferryServer, UsbipManager  # noqa: E402
+from usbferry.tapw import pipe_tap_pair  # noqa: E402
 
 PASS, FAIL = [], []
 
@@ -107,7 +107,7 @@ class RawClient:
     async def connect(self, port, want=("usbip",), token=None):
         ctx = certutil.client_ssl_context()
         self.r, self.w = await asyncio.open_connection(
-            "127.0.0.1", port, ssl=ctx, server_hostname="netshare")
+            "127.0.0.1", port, ssl=ctx, server_hostname="usbferry")
         hello = {"v": 1, "token": token or self.token, "hostname": "rawtest", "want": list(want)}
         self.w.write(json.dumps(hello).encode() + b"\n")
         await self.w.drain()
@@ -149,7 +149,7 @@ async def http_api(port, path, token, method="GET", body=None):
 
 # ---------------------------------------------------------------- main
 async def main():
-    print(f"\nnetshare loopback tests (tmp dir {TMP})\n")
+    print(f"\nusbferry loopback tests (tmp dir {TMP})\n")
 
     # infrastructure ------------------------------------------------------
     echo_srv, echo_port = await echo_server()
@@ -164,7 +164,7 @@ async def main():
     }
     usbip = FakeUsbip(cfg["usbip"])
     lan = LanManager(cfg["lan"], os.path.join(TMP, "state.json"), tap_factory=lambda: server_tap)
-    srv = NetshareServer(os.path.join(TMP, "server.json"), usbip_manager=usbip, lan_manager=lan)
+    srv = UsbferryServer(os.path.join(TMP, "server.json"), usbip_manager=usbip, lan_manager=lan)
     srv.cfg = json.loads(json.dumps(cfg))  # force test config
     srv.cfg["tokens"] = []
     token = srv.add_token("testclient")
@@ -176,7 +176,7 @@ async def main():
     # 1. auth --------------------------------------------------------------
     print("[auth]")
     raw = RawClient(token)
-    bad = RawClient("ns_wrongtoken")
+    bad = RawClient("uf_wrongtoken")
     w1 = await bad.connect(port, want=[])
     check("bad token rejected", w1.get("ok") is False and w1.get("error") == "invalid token")
     bad.close()
@@ -216,7 +216,7 @@ async def main():
     # 5. fingerprint pinning -------------------------------------------------
     print("[client]")
     state_path = os.path.join(TMP, "client.json")
-    c = NetshareClient("127.0.0.1", port, token, trust=False,
+    c = UsbferryClient("127.0.0.1", port, token, trust=False,
                        fingerprint="ab" * 32, forward_port=0, state_path=state_path)
     try:
         await asyncio.wait_for(c.run(), timeout=5)
@@ -226,7 +226,7 @@ async def main():
     except Exception as e:
         check("wrong fingerprint rejected", False, repr(e))
 
-    c = NetshareClient("127.0.0.1", port, token, trust=True, forward_port=0,
+    c = UsbferryClient("127.0.0.1", port, token, trust=True, forward_port=0,
                        state_path=state_path)
     task = asyncio.create_task(c.run())
     await asyncio.sleep(0.5)
@@ -237,9 +237,28 @@ async def main():
     check("TOFU stores correct fingerprint", fp_ok)
     task.cancel()
 
+    # 5b. on_ready + ctrl_request must not deadlock (regression: list-usb CLI
+    # used to wait forever because the frame loop wasn't running yet)
+    result = {}
+
+    async def on_ready(cli: UsbferryClient):
+        reply = await cli.ctrl_request("usb.list", timeout=5)
+        result["devices"] = len(reply.get("data", {}).get("devices", []))
+        cli.writer.close()
+
+    c_rb = UsbferryClient("127.0.0.1", port, token, want_usb=False, want_lan=False,
+                          trust=True, forward_port=0,
+                          state_path=os.path.join(TMP, "rb.json"), on_ready=on_ready)
+    try:
+        await asyncio.wait_for(c_rb.run(), timeout=10)
+    except (asyncio.TimeoutError, asyncio.IncompleteReadError, ConnectionError):
+        pass
+    check("on_ready ctrl_request does not deadlock", result.get("devices") == 2,
+          str(result))
+
     # 6. client usb forward --------------------------------------------------
     fwd_port = 0
-    c2 = NetshareClient("127.0.0.1", port, token, forward_port=fwd_port,
+    c2 = UsbferryClient("127.0.0.1", port, token, forward_port=fwd_port,
                         state_path=state_path, want_usb=True, want_lan=False)
     t2 = asyncio.create_task(c2.run())
     await asyncio.sleep(0.5)
@@ -251,7 +270,7 @@ async def main():
     ww.write(payload)
     await ww.drain()
     echoed = await rr.readexactly(len(payload))
-    check("usb forward roundtrip via NetshareClient", echoed == payload)
+    check("usb forward roundtrip via UsbferryClient", echoed == payload)
     ww.close()
 
     # 7. ctrl via client class ------------------------------------------------
@@ -260,7 +279,7 @@ async def main():
 
     # 8. LAN relay both directions --------------------------------------------
     client_tap, test_client_side = pipe_tap_pair()
-    c3 = NetshareClient("127.0.0.1", port, token, forward_port=0,
+    c3 = UsbferryClient("127.0.0.1", port, token, forward_port=0,
                         state_path=os.path.join(TMP, "c3.json"),
                         want_usb=False, want_lan=True, trust=True,
                         tap_factory=lambda: client_tap)
@@ -282,7 +301,7 @@ async def main():
     print("[web ui]")
     code, body = await http_api(web_port, "/api/status", token)
     check("GET /api/status", code == 200 and json.loads(body)["version"], f"{code} {body[:80]}")
-    code, body = await http_api(web_port, "/api/status", "ns_nothing")
+    code, body = await http_api(web_port, "/api/status", "uf_nothing")
     check("web rejects bad token", code == 401)
     code, body = await http_api(web_port, "/api/usb", token)
     check("GET /api/usb", code == 200 and len(json.loads(body)["devices"]) == 2)
@@ -290,7 +309,7 @@ async def main():
     ok = json.loads(body)
     check("POST /api/usb/bind", code == 200 and ok["ok"] and usbip.devices[0]["exported"])
     code, body = await http_api(web_port, "/", token, "GET")
-    check("GET / serves index.html", code == 200 and b"netshare" in body[:20000])
+    check("GET / serves index.html", code == 200 and b"usbferry" in body[:20000])
 
     # shutdown -------------------------------------------------------------------
     for t in (t2, t3):

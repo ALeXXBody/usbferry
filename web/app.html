@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>netshare</title>
+<link rel="icon" type="image/png" href="/favicon.png">
+<title>usbferry</title>
 <style>
   :root{
     --bg:#0d1117;--panel:#161b22;--panel2:#1c2129;--border:#30363d;--fg:#e6edf3;
@@ -155,18 +156,18 @@
     <div id="welcome" class="hero">
       <div class="big">⇄</div>
       <h2 style="margin:0 0 8px">Share USB &amp; LAN over the internet</h2>
-      <p>netshare has two roles. The <b>server</b> machine shares its USB devices and
+      <p>usbferry has two roles. The <b>server</b> machine shares its USB devices and
       network. The <b>client</b> machine uses them as if they were plugged in locally.
       This app can do either — or both at once.</p>
       <div class="cards">
         <div class="hcard" id="hero-add">
           <div class="t">🖥️ Use another machine's USB/LAN</div>
-          <div class="d">Add a remote netshare server and connect to it. Attach its USB
+          <div class="d">Add a remote usbferry server and connect to it. Attach its USB
           devices, join its LAN.</div>
         </div>
         <div class="hcard" id="hero-serve">
           <div class="t">⌨️ Share THIS machine's USB/LAN</div>
-          <div class="d">Run the netshare server here. Other machines connect to this PC
+          <div class="d">Run the usbferry server here. Other machines connect to this PC
           and use its USB devices over the internet.</div>
         </div>
       </div>
@@ -206,7 +207,7 @@
 
       <div id="srvsetup">
         <div class="card" style="max-width:560px">
-          <h3>Run the netshare server on this PC</h3>
+          <h3>Run the usbferry server on this PC</h3>
           <div class="field"><label>Tunnel port (clients connect here)</label>
             <input id="l_port" type="number" value="7575"></div>
           <div class="field"><label>Web admin port</label>
@@ -238,7 +239,7 @@
           <div class="card"><h3>USB devices on this machine</h3>
             <div id="suswrap"><div class="empty">Loading…</div></div>
             <p class="note">Bind a device to make it available to clients (they attach it
-            from their netshare app). Binding detaches it from this PC while shared.</p></div>
+            from their usbferry app). Binding detaches it from this PC while shared.</p></div>
         </section>
 
         <section id="stab-stok" class="hidden">
@@ -427,7 +428,7 @@ function renderServer(){
     kv("certificate",`<span class="mono">${esc(fp.slice(0,24))}…</span>`);
   const w=$("#adminwarn");
   if(!LS.elevated){
-    w.innerHTML="ℹ️ Not running elevated: binding USB devices may require running netshare as Administrator.";
+    w.innerHTML="ℹ️ Not running elevated: binding USB devices may require running usbferry as Administrator.";
     w.classList.add("show");
   } else w.classList.remove("show");
   if(u.error){
@@ -439,7 +440,7 @@ function renderServer(){
     s.map(x=>`<tr><td>${esc(x.hostname)}</td><td>${esc(x.token)}</td><td>${esc(x.addr)}</td>
       <td>${esc(x.lan||"–")}</td><td>${hum(x.rx)}</td><td>${hum(x.tx)}</td></tr>`).join("")
     :`<tr><td style="color:var(--dim)">no clients connected yet — create a token and add this PC
-        (${location.hostname||"this machine"}) in the client's netshare app</td></tr>`;
+        (${location.hostname||"this machine"}) in the client's usbferry app</td></tr>`;
   $("#logbox2").textContent=(ST.logs||[]).join("\n");
   refreshLocalUsb();refreshLocalTokens();
 }
@@ -527,7 +528,7 @@ async function connect(trust=false){
     showModal(`<h2>Trust this server?</h2>
       <p style="color:var(--dim);font-size:13px">First contact with <b>${esc(sel)}</b>.
       Verify this certificate fingerprint with whoever runs it
-      (their netshare app → server overview):</p>
+      (their usbferry app → server overview):</p>
       <div class="fp">${esc(ST.needed_fingerprint)}</div>
       <div class="row" style="justify-content:flex-end">
         <button class="btn" onclick="closeModal()">Cancel</button>
@@ -551,7 +552,7 @@ function serverModal(p){
     <div class="field"><label>Address</label><input id="f_host" value="${esc(p?p.host:"")}" placeholder="host or IP"></div>
     <div class="field"><label>Port</label><input id="f_port" type="number" value="${esc(p?p.port:7575)}"></div>
     <div class="field"><label>Token ${isNew?"":"(leave blank to keep)"}</label>
-      <input id="f_token" type="password" placeholder="ns_…" value=""></div>
+      <input id="f_token" type="password" placeholder="uf_…" value=""></div>
     <label class="check"><input type="checkbox" id="f_lan" ${p&&p.lan?"checked":""}>
       Also connect LAN (virtual NIC)</label>
     <div class="row" style="justify-content:flex-end">

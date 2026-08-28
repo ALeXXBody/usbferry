@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>netshare</title>
+<link rel="icon" type="image/png" href="/favicon.png">
+<title>usbferry</title>
 <style>
   :root{
     --bg:#0d1117; --panel:#161b22; --panel2:#1c2129; --border:#30363d;
@@ -65,9 +66,9 @@
 
 <div class="gate" id="gate">
   <h2>Authentication</h2>
-  <p>Enter a netshare token. Create one on the server with:<br>
-     <code>python3 -m netshare add-token --name webui</code></p>
-  <div class="row"><input type="text" id="tokinput" placeholder="ns_..."><button class="btn" id="tokbtn">Unlock</button></div>
+  <p>Enter a usbferry token. Create one on the server with:<br>
+     <code>python3 -m usbferry add-token --name webui</code></p>
+  <div class="row"><input type="text" id="tokinput" placeholder="uf_..."><button class="btn" id="tokbtn">Unlock</button></div>
   <p id="gateerr" style="color:var(--err)"></p>
 </div>
 
@@ -112,7 +113,7 @@
 <script>
 "use strict";
 const $=s=>document.querySelector(s);
-let TOKEN=localStorage.getItem("netshare_token")||"";
+let TOKEN=localStorage.getItem("usbferry_token")||"";
 
 function toast(msg,err){const t=$("#toast");t.textContent=msg;t.style.display="block";
   t.style.borderColor=err?"var(--err)":"var(--border)";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",4000);}
@@ -134,10 +135,10 @@ function showGate(err){$("#gate").classList.remove("hidden");$("#app").classList
 function showApp(){$("#gate").classList.add("hidden");$("#app").classList.remove("hidden");}
 
 $("#tokbtn").onclick=async()=>{TOKEN=$("#tokinput").value.trim();
-  if(!TOKEN)return;localStorage.setItem("netshare_token",TOKEN);
+  if(!TOKEN)return;localStorage.setItem("usbferry_token",TOKEN);
   try{await api("status");showApp();refresh();}catch(e){}};
 $("#tokinput").addEventListener("keydown",e=>{if(e.key==="Enter")$("#tokbtn").click();});
-$("#relock").onclick=()=>{localStorage.removeItem("netshare_token");TOKEN="";showGate();};
+$("#relock").onclick=()=>{localStorage.removeItem("usbferry_token");TOKEN="";showGate();};
 
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("active",x===b));
@@ -170,7 +171,7 @@ async function refresh(){
 
 async function refreshUsb(){
   const d=await api("usb").catch(()=>null);if(!d)return;
-  const hint=`netshare attach <server> -b <busid> --token <token>`;
+  const hint=`usbferry attach <server> -b <busid> --token <token>`;
   $("#attachhint").textContent=hint;
   const dev=d.devices||[];
   $("#usbtable").innerHTML=!d.available

@@ -1,4 +1,4 @@
-"""netshare client: TLS tunnel, local usbip port-forward, TAP-based LAN, attach automation."""
+"""usbferry client: TLS tunnel, local usbip port-forward, TAP-based LAN, attach automation."""
 
 import asyncio
 import json
@@ -38,7 +38,7 @@ class UsbipChannelConn:
         self.writer = writer
 
 
-class NetshareClient:
+class UsbferryClient:
     def __init__(self, host, port=DEFAULT_PORT, token="", *,
                  want_usb=True, want_lan=False, trust=False, fingerprint=None,
                  forward_host="127.0.0.1", forward_port=3240,
@@ -92,7 +92,7 @@ class NetshareClient:
                 f"  expected: {expected}\n"
                 f"  got:      {fp}\n"
                 "Possible MITM. If you knowingly changed the server cert, update "
-                "~/.config/netshare/client.json or pass --fingerprint.")
+                "~/.config/usbferry/client.json or pass --fingerprint.")
         if not expected:
             if self.trust or (sys.stdin.isatty() and self._ask_trust(fp)):
                 st = self._state()
@@ -129,7 +129,7 @@ class NetshareClient:
         ctx = certutil.client_ssl_context()
         log.info("connecting to %s:%s ...", self.host, self.port)
         self.reader, self.writer = await asyncio.open_connection(
-            self.host, self.port, ssl=ctx, server_hostname="netshare")
+            self.host, self.port, ssl=ctx, server_hostname="usbferry")
 
         ssl_obj = self.writer.get_extra_info("ssl_object")
         self._pin_fingerprint(certutil.peer_fingerprint(ssl_obj))
@@ -153,7 +153,7 @@ class NetshareClient:
         if not self.welcome.get("ok"):
             raise ClientError(f"server rejected us: {self.welcome.get('error', '?')}")
 
-        log.info("connected to %s (netshare v%s)", self.welcome.get("server", "?"),
+        log.info("connected to %s (usbferry v%s)", self.welcome.get("server", "?"),
                  self.welcome.get("version", "?"))
 
     async def run_connected(self):
@@ -165,13 +165,18 @@ class NetshareClient:
         elif self.want_usb:
             log.warning("usb sharing unavailable on server: %s", self.welcome.get("usbip"))
 
-        if self.on_ready:
-            await self.on_ready(self)
-
+        # the frame loop must run while on_ready executes: callbacks like
+        # list-usb issue ctrl requests and wait for replies
+        loop_task = asyncio.create_task(self._frame_loop())
         self.ready.set()
         try:
-            await self._frame_loop()
+            if self.on_ready:
+                await self.on_ready(self)
+            await loop_task
+        except (asyncio.IncompleteReadError, ConnectionError, OSError):
+            pass  # connection ended (e.g. on_ready closed it, or server hung up)
         finally:
+            loop_task.cancel()
             await self._cleanup()
 
     # ----- lan --------------------------------------------------------------

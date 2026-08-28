@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "usbferry"
+version = "0.4.1"
+description = "Share USB devices and LAN connectivity across networks or the internet — encrypted usbip + TAP tunnel, GUI, CLI and web admin."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "ALeXXBody" }]
+keywords = ["usb", "usbip", "network", "vpn", "tap", "remote", "share"]
+classifiers = [
+    "Environment :: Console",
+    "Environment :: X11 Applications",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Networking",
+    "Topic :: System :: Hardware :: Universal Serial Bus (USB)",
+]
+dependencies = []  # core is stdlib-only
+
+[project.optional-dependencies]
+gui = [
+    "pywebview>=5.0",
+    "pythonnet>=3.0; sys_platform == 'win32'",
+]
+
+[project.scripts]
+usbferry = "usbferry.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/ALeXXBody/usbferry"
+Issues = "https://github.com/ALeXXBody/usbferry/issues"
+
+[tool.setuptools]
+packages = ["usbferry"]
+
+[tool.setuptools.package-data]
+usbferry = ["assets/*"]

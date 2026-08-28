@@ -12,14 +12,14 @@ TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(TESTS_DIR)
 sys.path.insert(0, ROOT)
 
-TMP = tempfile.mkdtemp(prefix="netshare-ls-")
-os.environ["NETSHARE_CONFIG_DIR"] = TMP
+TMP = tempfile.mkdtemp(prefix="usbferry-ls-")
+os.environ["USBFERRY_CONFIG_DIR"] = TMP
 
-from test_loopback import FakeUsbip, http_api  # noqa: E402  (may reset NETSHARE_CONFIG_DIR)
-os.environ["NETSHARE_CONFIG_DIR"] = TMP  # reclaim after test_loopback's module-level side effect
+from test_loopback import FakeUsbip, http_api  # noqa: E402  (may reset USBFERRY_CONFIG_DIR)
+os.environ["USBFERRY_CONFIG_DIR"] = TMP  # reclaim after test_loopback's module-level side effect
 
-from netshare.gui import GuiApp  # noqa: E402
-from netshare.server import LanManager, WindowsUsbipManager  # noqa: E402
+from usbferry.gui import GuiApp  # noqa: E402
+from usbferry.server import LanManager, WindowsUsbipManager  # noqa: E402
 
 PASS, FAIL = [], []
 
@@ -112,13 +112,13 @@ async def test_local_server():
 
         # token round-trip: create via GUI API, authenticate against the tunnel
         c, r = await gui_api(gui_port, "local-server/token", "POST", {"name": "laptop"})
-        check("token created", c == 200 and r.get("token", "").startswith("ns_"), str(r))
+        check("token created", c == 200 and r.get("token", "").startswith("uf_"), str(r))
         token = r.get("token", "")
 
-        from netshare import certutil
+        from usbferry import certutil
         ctx = certutil.client_ssl_context()
         r2, w2 = await asyncio.open_connection("127.0.0.1", srv_port, ssl=ctx,
-                                               server_hostname="netshare")
+                                               server_hostname="usbferry")
         w2.write(json.dumps({"v": 1, "token": token, "hostname": "gui-test",
                              "want": []}).encode() + b"\n")
         await w2.drain()
@@ -154,10 +154,34 @@ async def test_local_server():
         await gui.stop()  # also stops any local server, freeing its ports
 
 
+async def test_running_service_token_reload():
+    """Deployed scenario: service is running; add-token CLI (a separate
+    NetshareServer instance) writes a new token to disk; the running service
+    must accept it without a restart."""
+    print("[token hot-reload]")
+    from usbferry.server import UsbferryServer
+
+    cfg_path = os.path.join(TMP, "server2.json")
+    running = UsbferryServer(cfg_path)  # starts empty, like a fresh install
+    running.cfg["tokens"] = []
+    # separate instance == the add-token CLI process
+    cli_side = UsbferryServer(cfg_path)
+    cli_side.cfg["tokens"] = []
+    token = cli_side.add_token("late-token")  # writes to disk only
+
+    check("new token accepted without restart",
+          running.verify_token(token) == "late-token")
+    check("wrong token still rejected", running.verify_token("uf_bogus") is None)
+    # removal propagates too
+    cli_side.remove_token("late-token")
+    check("removal propagates", running.verify_token(token) is None)
+
+
 async def main():
-    print(f"\nnetshare local-server tests (tmp {TMP})\n")
+    print(f"\nusbferry local-server tests (tmp {TMP})\n")
     test_parser()
     await test_local_server()
+    await test_running_service_token_reload()
     print(f"\n{'='*46}\n{len(PASS)} passed, {len(FAIL)} failed")
     if FAIL:
         print("failed:", ", ".join(FAIL))

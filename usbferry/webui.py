@@ -1,7 +1,7 @@
 """Embedded web UI: a very small asyncio HTTP server (stdlib only).
 
 Serves web/index.html and a JSON API authenticated with the same tokens as the
-tunnel (Authorization: Bearer <token>). Meant for managing a netshare server.
+tunnel (Authorization: Bearer <token>). Meant for managing a usbferry server.
 """
 
 import asyncio
@@ -10,6 +10,7 @@ import os
 import sys
 
 from .common import log
+from .httpd import respond
 
 MAX_BODY = 1 << 20
 INDEX_CANDIDATES = [
@@ -17,8 +18,9 @@ INDEX_CANDIDATES = [
     os.path.join(getattr(sys, "_MEIPASS", ""), "web", "index.html"),
     os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "index.html"),
     os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[0] or "."))), "web", "index.html"),
-    "/usr/share/netshare/web/index.html",
+    "/usr/share/usbferry/web/index.html",
 ]
+FAVICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "favicon.png")
 
 
 class WebUI:
@@ -81,6 +83,14 @@ class WebUI:
 
         if path == "/" or path.startswith("/index"):
             self._serve_index(writer)
+            return
+
+        if path in ("/favicon.ico", "/favicon.png"):
+            try:
+                with open(FAVICON, "rb") as f:
+                    respond(writer, 200, f.read(), "image/png")
+            except OSError:
+                respond(writer, 404, {"error": "no icon"})
             return
 
         if not path.startswith("/api/"):

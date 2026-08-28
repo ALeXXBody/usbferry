@@ -31,7 +31,7 @@ import struct
 import sys
 import time
 
-log = logging.getLogger("netshare")
+log = logging.getLogger("usbferry")
 
 DEFAULT_PORT = 7575
 DEFAULT_WEB_PORT = 7580
@@ -85,7 +85,7 @@ def token_hash(token: str) -> str:
 
 
 def new_token() -> str:
-    return "ns_" + secrets.token_urlsafe(24)
+    return "uf_" + secrets.token_urlsafe(24)
 
 
 def constant_time_eq(a: str, b: str) -> bool:
@@ -93,10 +93,10 @@ def constant_time_eq(a: str, b: str) -> bool:
 
 
 def config_dir() -> str:
-    base = os.environ.get("NETSHARE_CONFIG_DIR")
+    base = os.environ.get("USBFERRY_CONFIG_DIR")
     if base:
         return base
-    return os.path.join(os.path.expanduser("~"), ".config", "netshare")
+    return os.path.join(os.path.expanduser("~"), ".config", "usbferry")
 
 
 def load_json(path: str, default):
@@ -175,19 +175,19 @@ _console_hidden = False
 
 
 def write_crash_log(text: str) -> str | None:
-    """Append a crash report to <config>/netshare-crash.log; return the path."""
+    """Append a crash report to <config>/usbferry-crash.log; return the path."""
     try:
-        path = os.path.join(config_dir(), "netshare-crash.log")
+        path = os.path.join(config_dir(), "usbferry-crash.log")
         os.makedirs(config_dir(), exist_ok=True)
         with open(path, "a") as f:
             f.write(f"\n===== {time.strftime('%Y-%m-%d %H:%M:%S')} "
-                    f"netshare {os.environ.get('NETSHARE_VERSION', '')} =====\n{text}\n")
+                    f"usbferry {os.environ.get('USBFERRY_VERSION', '')} =====\n{text}\n")
         return path
     except OSError:
         return None
 
 
-def message_box(text: str, title: str = "netshare") -> None:
+def message_box(text: str, title: str = "usbferry") -> None:
     """Show a native error dialog on Windows (no-op elsewhere)."""
     if os.name != "nt":
         return

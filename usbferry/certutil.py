@@ -43,7 +43,7 @@ def ensure_cert(cert_dir: str) -> tuple[str, str, str]:
             "-pkeyopt", "ec_paramgen_curve:prime256v1",
             "-keyout", key, "-out", cert,
             "-days", "3650", "-nodes",
-            "-subj", "/CN=netshare",
+            "-subj", "/CN=usbferry",
         ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if rc != 0:
             raise RuntimeError(

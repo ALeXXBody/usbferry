@@ -1,9 +1,9 @@
-"""netshare desktop GUI.
+"""usbferry desktop GUI.
 
 Backend: a local (127.0.0.1) HTTP API managing server profiles, the tunnel
 connection, usbip attach/detach and LAN. Frontend: web/app.html rendered in a
 native window via pywebview when available (Edge WebView2 / WebKit), otherwise
-the default browser. Run with:  python3 -m netshare gui   (or netshare.exe)
+the default browser. Run with:  python3 -m usbferry gui   (or usbferry.exe)
 """
 
 import asyncio
@@ -17,7 +17,7 @@ import webbrowser
 from collections import deque
 
 from . import __version__
-from .client import NetshareClient, SecurityError, usbip_attach, usbip_detach_ours
+from .client import UsbferryClient, SecurityError, usbip_attach, usbip_detach_ours
 from .common import (
     config_dir, hide_console, human_bytes, is_elevated, load_json, log,
     save_json, show_console,
@@ -27,8 +27,9 @@ from .httpd import parse_request, respond
 APP_CANDIDATES = [
     os.path.join(getattr(sys, "_MEIPASS", ""), "web", "app.html"),
     os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "app.html"),
-    "/usr/share/netshare/web/app.html",
+    "/usr/share/usbferry/web/app.html",
 ]
+FAVICON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "favicon.png")
 
 
 class GuiApp:
@@ -41,7 +42,7 @@ class GuiApp:
         self.lan_manager = lan_manager        # test hook for the local server's LAN backend
         state = load_json(self.state_path, {"profiles": []})
         self.profiles: list[dict] = state.get("profiles", [])
-        self.client: NetshareClient | None = None
+        self.client: UsbferryClient | None = None
         self.client_task: asyncio.Task | None = None
         self.profile_name: str | None = None
         self.status = "disconnected"   # disconnected|connecting|connected|needs_trust|error
@@ -52,13 +53,13 @@ class GuiApp:
         self.since = 0
         self.http = None
         self.port = 0
-        self.local_server = None      # NetshareServer when running
+        self.local_server = None      # UsbferryServer when running
         self.local_ports: tuple[int, int] = (0, 0)
         self.app_path = next((p for p in APP_CANDIDATES if os.path.exists(p)), APP_CANDIDATES[1])
 
     # ----- lifecycle --------------------------------------------------------
     async def start(self):
-        wanted = int(os.environ.get("NETSHARE_GUI_PORT", "0") or 0)
+        wanted = int(os.environ.get("USBFERRY_GUI_PORT", "0") or 0)
         self.http = await asyncio.start_server(self._handle, "127.0.0.1", wanted)
         self.port = self.http.sockets[0].getsockname()[1]
         self.log("GUI ready on http://127.0.0.1:%d/", self.port)
@@ -92,7 +93,7 @@ class GuiApp:
             cli = self.client_factory(p["host"], int(p.get("port", 7575)), p.get("token", ""),
                                       True, use_lan, trust, 3240, "ns0")
         else:
-            cli = NetshareClient(p["host"], int(p.get("port", 7575)), p.get("token", ""),
+            cli = UsbferryClient(p["host"], int(p.get("port", 7575)), p.get("token", ""),
                                  want_usb=True, want_lan=use_lan, trust=trust,
                                  forward_port=3240, tap_name="ns0")
         try:
@@ -122,7 +123,7 @@ class GuiApp:
         self.log("connected to %s (usbip=%s lan=%s)", w.get("server", "?"),
                  w.get("usbip", False), bool(w.get("lan")))
 
-    async def _run_client(self, cli: NetshareClient, use_lan: bool):
+    async def _run_client(self, cli: UsbferryClient, use_lan: bool):
         try:
             await cli.run_connected()
         except asyncio.CancelledError:
@@ -190,7 +191,7 @@ class GuiApp:
     # ----- local server --------------------------------------------------------
     async def local_server_start(self, port: int = 7575, web_port: int = 7580,
                                  lan: bool = False) -> dict:
-        from .server import NetshareServer
+        from .server import UsbferryServer
         if self.local_server:
             return {"ok": False, "error": "local server already running"}
         overrides = {
@@ -199,7 +200,7 @@ class GuiApp:
             "lan": {"enabled": bool(lan)},
         }
         usbip_mgr = self.usbip_factory() if self.usbip_factory else None
-        srv = NetshareServer(self.server_config_path, overrides,
+        srv = UsbferryServer(self.server_config_path, overrides,
                              usbip_manager=usbip_mgr,
                              lan_manager=self.lan_manager)
         try:
@@ -285,6 +286,14 @@ class GuiApp:
                     respond(writer, 200, html, "text/html; charset=utf-8")
                 except OSError:
                     respond(writer, 500, {"error": "app.html not found"})
+                return
+
+            if path in ("/favicon.ico", "/favicon.png"):
+                try:
+                    with open(FAVICON, "rb") as f:
+                        respond(writer, 200, f.read(), "image/png")
+                except OSError:
+                    respond(writer, 404, {"error": "no icon"})
                 return
 
             api = path[len("/api/"):] if path.startswith("/api/") else None
@@ -431,7 +440,7 @@ def run_gui(no_window: bool = False, _wait=None) -> None:
 
     def browser_fallback(reason: str):
         print(f"\n  [!] native window unavailable: {reason}")
-        print(f"  netshare GUI is running at {url}")
+        print(f"  usbferry GUI is running at {url}")
         print("  A browser tab should open automatically; if not, open the")
         print("  address above manually. Keep this window open; Ctrl-C to quit.\n")
         try:
@@ -450,7 +459,7 @@ def run_gui(no_window: bool = False, _wait=None) -> None:
     try:
         import webview
         webview.create_window(
-            f"netshare {__version__}", url, width=1020, height=700,
+            f"usbferry {__version__}", url, width=1020, height=700,
             min_size=(780, 540), background_color="#0d1117")
         hide_console()  # hide the launcher console only if we own it
         webview.start()  # blocks until the window is closed

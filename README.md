@@ -1,9 +1,9 @@
-# netshare
+# usbferry
 
 Share **USB devices** and a **LAN connection** across networks or the internet —
 with a modern desktop GUI, a CLI, and a web-managed server.
 
-netshare is a server/client app that tunnels the kernel-standard **USB/IP
+usbferry is a server/client app that tunnels the kernel-standard **USB/IP
 (usbip)** protocol and raw **ethernet frames (TAP virtual NIC)** through one
 encrypted, token-authenticated TLS connection — so a USB device plugged into
 your server appears locally plugged into your client machine, and your client
@@ -58,7 +58,7 @@ without usbip).
 ### The app does both roles
 
 - **Server** — the machine that *shares* its USB devices / LAN. Run it from the
-  GUI ("This PC → Local server") or `netshare serve`.
+  GUI ("This PC → Local server") or `usbferry serve`.
 - **Client** — the machine that *uses* them. Add the server in the GUI and
   connect, or use the CLI.
 
@@ -66,9 +66,9 @@ Both can run at once (a PC can share and use simultaneously).
 
 ### Graphical app (recommended)
 
-- **Windows**: download **`netshare.exe`** (windowed — no console window) and
-  double-click it. `netshare-cli.exe` is the same program for terminals.
-- **Linux/macOS**: `python3 -m netshare gui`
+- **Windows**: download **`usbferry.exe`** (windowed — no console window) and
+  double-click it. `usbferry-cli.exe` is the same program for terminals.
+- **Linux/macOS**: `python3 -m usbferry gui`
 
 First run shows a short explainer, then:
 
@@ -86,16 +86,16 @@ Everything (logs included) lives inside the app; no console window is needed.
 ### Server
 
 ```bash
-git clone <your-repo> && cd netshare
-sudo ./install/install.sh              # copies to /opt/netshare, enables systemd unit
-sudo systemctl start netshare-server
+git clone <your-repo> && cd usbferry
+sudo ./install/install.sh              # copies to /opt/usbferry, enables systemd unit
+sudo systemctl start usbferry-server
 
-sudo python3 -m netshare add-token --name mylaptop
-# token: ns_XXXXXXXX...   (shown once)
+sudo python3 -m usbferry add-token --name mylaptop
+# token: uf_XXXXXXXX...   (shown once)
 ```
 
 Open the web UI: `http://<server>:7580/` (unlock with any token), or edit
-`~/.config/netshare/server.json`:
+`~/.config/usbferry/server.json`:
 
 ```json
 {
@@ -113,35 +113,35 @@ interfaces automatically when iptables is available).
 
 **Windows (no Python needed):**
 
-1. Download **`netshare.exe`** from [Releases](../../releases) (built by CI, self-contained)
+1. Download **`usbferry.exe`** from [Releases](../../releases) (built by CI, self-contained)
 2. Install [usbip-win2](https://github.com/vadimgrn/usbip-win2/releases) once (the Windows USB/IP client driver; a restore point is recommended before driver installs)
 3. PowerShell **as Administrator**:
 
 ```powershell
-.\netshare.exe list-usb myserver.example.com --token ns_XXX --trust
-.\netshare.exe attach myserver.example.com -b 1-2 --token ns_XXX --trust   # Ctrl-C detaches
-.\netshare.exe connect myserver.example.com --token ns_XXX --trust --lan   # virtual NIC (needs TAP driver)
+.\usbferry.exe list-usb myserver.example.com --token uf_XXX --trust
+.\usbferry.exe attach myserver.example.com -b 1-2 --token uf_XXX --trust   # Ctrl-C detaches
+.\usbferry.exe connect myserver.example.com --token uf_XXX --trust --lan   # virtual NIC (needs TAP driver)
 ```
 
 **Linux:**
 
 ```bash
 # see what's plugged into the server
-python3 -m netshare list-usb myserver.example.com --token ns_XXX --trust
+python3 -m usbferry list-usb myserver.example.com --token uf_XXX --trust
 
 # attach a device (appears as if locally plugged in; Ctrl-C detaches)
-python3 -m netshare attach myserver.example.com -b 1-2 --token ns_XXX --trust
+python3 -m usbferry attach myserver.example.com -b 1-2 --token uf_XXX --trust
 
 # LAN too: virtual NIC with an IP from the server's tunnel subnet
-python3 -m netshare connect myserver.example.com --token ns_XXX --trust --lan
+python3 -m usbferry connect myserver.example.com --token uf_XXX --trust --lan
 
 # route ALL traffic through the server (remote-gateway mode)
-python3 -m netshare connect myserver.example.com --token ns_XXX --trust --lan --default-route
+python3 -m usbferry connect myserver.example.com --token uf_XXX --trust --lan --default-route
 ```
 
 First connection pins the server's certificate fingerprint (TOFU); verify it
 against the value printed by the server (also shown in the web UI). Tokens can
-be passed via `NETSHARE_TOKEN` env var.
+be passed via `USBFERRY_TOKEN` env var.
 
 **Windows client**: install [usbip-win2](https://github.com/vadimgrn/usbip-win2)
 (same `usbip attach -r 127.0.0.1 -b <busid>` syntax is automated for you, run
@@ -152,7 +152,7 @@ the client configures it via netsh (experimental).
 
 1. Web UI or CLI **binds** (exports) a server-side USB device:
    `usbip bind -b 1-2`
-2. Client runs `netshare attach ... -b 1-2`, which:
+2. Client runs `usbferry attach ... -b 1-2`, which:
    - opens the encrypted tunnel and forwards local `127.0.0.1:3240` to the
      server's usbipd
    - runs `usbip attach -r 127.0.0.1 -b 1-2` locally
@@ -185,9 +185,9 @@ only what you share; issue per-person tokens and revoke to cut access.
 
 - **Window flashes and closes on Windows** → fixed in v0.2.1: any startup
   error now shows a dialog and is written to
-  `<home>\.config\netshare\netshare-crash.log`. Check `.\netshare.exe --version`
+  `<home>\.config\usbferry\usbferry-crash.log`. Check `.\usbferry.exe --version`
   to confirm you're on v0.2.1 or later.
-- **No native window** → if the WebView2 runtime is missing, netshare
+- **No native window** → if the WebView2 runtime is missing, usbferry
   automatically falls back to opening the GUI in your default browser
   (fully functional; the console window must stay open).
 - **USB attach fails on Windows** → install the
@@ -204,7 +204,7 @@ python3 tests/test_loopback.py     # protocol/relay/auth suite
 python3 tests/test_gui.py          # GUI backend + webview-fallback suite
 ```
 
-Layout: `netshare/common.py` (framing) · `server.py` (tunnel+usbip+LAN) ·
+Layout: `usbferry/common.py` (framing) · `server.py` (tunnel+usbip+LAN) ·
 `client.py` · `webui.py` + `web/index.html` · `tapw.py` (TAP backends) ·
 `certutil.py`.
 

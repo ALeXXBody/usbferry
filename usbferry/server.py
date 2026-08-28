@@ -1,4 +1,4 @@
-"""netshare server: TLS tunnel, token auth, usbip backend, LAN (TAP/NAT) backend."""
+"""usbferry server: TLS tunnel, token auth, usbip backend, LAN (TAP/NAT) backend."""
 
 import asyncio
 import ipaddress
@@ -81,7 +81,7 @@ class UsbipManager:
 
     async def _harden_firewall(self):
         """usbipd binds all interfaces; block non-loopback access so only the
-        encrypted netshare tunnel reaches it."""
+        encrypted usbferry tunnel reaches it."""
         if not which("iptables"):
             log.warning("iptables not found; consider blocking external TCP/%s for usbipd", self.port)
             return
@@ -458,12 +458,16 @@ DEFAULT_CONFIG = {
 }
 
 
-class NetshareServer:
+class UsbferryServer:
     def __init__(self, config_path: str | None = None, overrides: dict | None = None,
                  usbip_manager=None, lan_manager=None):
         self.config_path = config_path or os.path.join(config_dir(), "server.json")
         self.cfg = dict(DEFAULT_CONFIG)
         deep_merge(self.cfg, load_json(self.config_path, {}))
+        try:
+            self._cfg_mtime = os.path.getmtime(self.config_path)
+        except OSError:
+            self._cfg_mtime = None
         if overrides:
             deep_merge(self.cfg, overrides)
         self.state_path = os.path.join(os.path.dirname(self.config_path), "server.state.json")
@@ -498,14 +502,37 @@ class NetshareServer:
         return changed
 
     def verify_token(self, token: str) -> str | None:
+        # tokens may be added/removed on disk while running (add-token CLI);
+        # one stat() per auth keeps the in-memory list in sync
+        self._reload_tokens_if_changed()
+        return self._lookup_token(token)
+
+    def _lookup_token(self, token: str) -> str | None:
         th = token_hash(token)
         for t in self.cfg.get("tokens", []):
             if constant_time_eq(t["hash"], th):
                 return t["name"]
         return None
 
+    def _reload_tokens_if_changed(self):
+        try:
+            mtime = os.path.getmtime(self.config_path)
+        except OSError:
+            return
+        if mtime == getattr(self, "_cfg_mtime", None):
+            return
+        fresh = load_json(self.config_path, {})
+        if isinstance(fresh.get("tokens"), list):
+            self.cfg["tokens"] = fresh["tokens"]
+            self._cfg_mtime = mtime
+            log.info("reloaded %d token(s) from %s", len(self.cfg["tokens"]), self.config_path)
+
     def _save_config(self):
         save_json(self.config_path, self.cfg)
+        try:
+            self._cfg_mtime = os.path.getmtime(self.config_path)
+        except OSError:
+            pass
 
     # ----- lifecycle --------------------------------------------------------
     async def start(self):
@@ -529,13 +556,13 @@ class NetshareServer:
         await self.webui.start()
 
         log.info("=" * 62)
-        log.info("netshare server v%s listening on %s:%s (tunnel, TLS)", __version__, self.cfg["bind"], self.cfg["port"])
+        log.info("usbferry server v%s listening on %s:%s (tunnel, TLS)", __version__, self.cfg["bind"], self.cfg["port"])
         log.info("web UI: http://%s:%s/", web_cfg.get("bind", "0.0.0.0"), web_cfg.get("port", DEFAULT_WEB_PORT))
         log.info("cert fingerprint: %s", self.fingerprint)
         log.info("usb sharing: %s", "ready" if self.usbip.available else f"UNAVAILABLE ({self.usbip.error})")
         log.info("lan sharing: %s", f"ready ({self.lan.mode})" if self.lan.active else f"UNAVAILABLE ({self.lan.error})")
         if not self.cfg.get("tokens"):
-            log.warning("NO TOKENS configured - run:  python3 -m netshare add-token --name mylaptop")
+            log.warning("NO TOKENS configured - run:  python3 -m usbferry add-token --name mylaptop")
         log.info("=" * 62)
 
     async def stop(self):
@@ -575,7 +602,7 @@ class NetshareServer:
             session.hostname = str(hello.get("hostname", "?"))[:64]
             want = hello.get("want", [])
 
-            reply = {"ok": True, "v": 1, "server": platform.node() or "netshare",
+            reply = {"ok": True, "v": 1, "server": platform.node() or "usbferry",
                      "version": __version__,
                      "usbip": self.usbip.available}
             if "lan" in want and self.lan.active:
