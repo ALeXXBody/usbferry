@@ -1,6 +1,7 @@
 # netshare
 
-Share **USB devices** and a **LAN connection** across networks or the internet.
+Share **USB devices** and a **LAN connection** across networks or the internet —
+with a modern desktop GUI, a CLI, and a web-managed server.
 
 netshare is a server/client app that tunnels the kernel-standard **USB/IP
 (usbip)** protocol and raw **ethernet frames (TAP virtual NIC)** through one
@@ -52,6 +53,26 @@ the server in a standard Linux VM instead (LAN-only mode also works fine
 without usbip).
 
 ## Quick start
+
+### Graphical client (recommended)
+
+Windows: double-click **`netshare.exe`** (or run `.\netshare.exe gui`).
+Linux/macOS: `python3 -m netshare gui`.
+
+The GUI opens a native window (Edge WebView2 / WebKit; falls back to your
+browser) where you:
+
+1. **Add server** — name, address, token, optional LAN toggle
+2. **Connect** — first connection shows the server's certificate fingerprint
+   to verify and pin (trust-on-first-use)
+3. **USB devices tab** — see everything plugged into the server, one-click
+   **Attach** (device appears locally), **Detach all** when done
+4. **LAN tab** — your virtual IP, server IP, subnet
+5. **Activity tab** — live traffic stats and logs
+
+Everything is stored in `~/.config/netshare/gui.json` (profiles) and
+`client.json` (pinned fingerprints). CLI equivalents: `list-usb`, `attach`,
+`connect --lan`.
 
 ### Server
 

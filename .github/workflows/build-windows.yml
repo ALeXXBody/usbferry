@@ -21,9 +21,10 @@ jobs:
       - name: Build netshare.exe
         shell: pwsh
         run: |
-          pip install pyinstaller
+          pip install pyinstaller pywebview
           pyinstaller --onefile --console --name netshare `
             --add-data "web/index.html;web" `
+            --add-data "web/app.html;web" `
             netshare-cli.py
 
       - name: Smoke test

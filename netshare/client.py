@@ -26,7 +26,7 @@ class ClientError(Exception):
 
 
 class SecurityError(ClientError):
-    pass
+    fingerprint: str | None = None
 
 
 class UsbipChannelConn:
@@ -72,6 +72,7 @@ class NetshareClient:
         self._ctrl_futs: dict[int, asyncio.Future] = {}
         self._ctrl_id = 0
         self._closed = False
+        self.ready = asyncio.Event()
         self.rx = 0
         self.tx = 0
 
@@ -100,10 +101,12 @@ class NetshareClient:
                 save_json(self.state_path, st)
                 log.info("pinned server fingerprint %s", fp)
             else:
-                raise SecurityError(
+                err = SecurityError(
                     f"unknown server fingerprint {fp}\n"
                     "Verify it with the server operator, then rerun with --trust "
                     "(or --fingerprint).")
+                err.fingerprint = fp
+                raise err
 
     @staticmethod
     def _ask_trust(fp: str) -> bool:
@@ -115,6 +118,12 @@ class NetshareClient:
 
     # ----- main -------------------------------------------------------------
     async def run(self):
+        await self.connect()
+        await self.run_connected()
+
+    async def connect(self):
+        """TLS connect, pin fingerprint, authenticate. Raises SecurityError
+        (with .fingerprint set) when the cert is unknown and trust was not given."""
         if not self.token:
             raise ClientError("no token given (--token / config)")
         ctx = certutil.client_ssl_context()
@@ -147,6 +156,8 @@ class NetshareClient:
         log.info("connected to %s (netshare v%s)", self.welcome.get("server", "?"),
                  self.welcome.get("version", "?"))
 
+    async def run_connected(self):
+        """Start forwards/LAN/TAP and pump frames until the connection dies."""
         if self.want_lan:
             await self._start_lan()
         if self.want_usb and self.welcome.get("usbip"):
@@ -157,6 +168,7 @@ class NetshareClient:
         if self.on_ready:
             await self.on_ready(self)
 
+        self.ready.set()
         try:
             await self._frame_loop()
         finally:

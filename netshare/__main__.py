@@ -69,6 +69,10 @@ def build_parser() -> argparse.ArgumentParser:
     add_client_opts(c)
     c.add_argument("-b", "--busid", required=True, help="server-side busid, e.g. 1-2")
 
+    g = sub.add_parser("gui", help="graphical client (default) - manage servers, attach USB, LAN")
+    g.add_argument("--no-window", action="store_true",
+                   help="serve the GUI in the default browser instead of a native window")
+
     return ap
 
 
@@ -195,6 +199,8 @@ async def _token_cmd(args, action):
 
 
 def main():
+    if len(sys.argv) == 1:
+        sys.argv.append("gui")  # double-click / no-args launches the GUI
     args = build_parser().parse_args()
     setup_logging(args.verbose)
     try:
@@ -206,6 +212,9 @@ def main():
             asyncio.run(cmd_list_usb(args))
         elif args.cmd == "attach":
             asyncio.run(cmd_attach(args))
+        elif args.cmd == "gui":
+            from .gui import run_gui
+            run_gui(no_window=args.no_window)
         elif args.cmd == "add-token":
             asyncio.run(_token_cmd(args, "add"))
         elif args.cmd == "rm-token":
