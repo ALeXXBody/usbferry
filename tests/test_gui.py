@@ -88,7 +88,8 @@ async def main():
 
     print("[usb]")
     c, r = await gui_api(gui_port, "usb")
-    check("usb list via tunnel", c == 200 and r["ok"] and len(r["data"]["devices"]) == 2)
+    check("usb list via tunnel (exported only)",
+          c == 200 and r["ok"] and len(r["data"]["devices"]) == 1, str(r))
     c, r = await gui_api(gui_port, "attach", "POST", {"busid": "1-2"})
     check("attach call is graceful without usbip binary",
           c == 200 and r["ok"] is False and "usbip" in r.get("message", ""), str(r))

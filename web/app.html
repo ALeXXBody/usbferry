@@ -376,19 +376,19 @@ async function refreshUsb(){
     $("#usbwrap").innerHTML=`<div class="empty">USB sharing is unavailable on this server:<br>${esc(d.error||"?")}</div>`;return;
   }
   $("#usbwrap").innerHTML = devs.length ? `<table>
-    <tr><th>busid</th><th>device</th><th>status</th><th></th></tr>`+
+    <tr><th>busid</th><th>device</th><th></th></tr>`+
     devs.map(x=>{
       const att=(ST.attached||[]).includes(x.busid);
       return `<tr>
         <td class="mono">${esc(x.busid)}</td>
         <td>${esc(x.desc)} <span class="mono" style="color:var(--dim)">${esc(x.vidpid)}</span></td>
-        <td>${x.exported?'<span class="tag ok">exported</span>':'<span class="tag">not exported</span>'}</td>
         <td>${att?'<span class="tag ok">attached ✓</span>'
-          :`<button class="btn sm" onclick="attach('${esc(x.busid)}')" ${x.exported?"":"disabled title='The server must bind it first (its app → USB devices)'"}>Attach</button>`}</td>
+          :`<button class="btn sm" onclick="attach('${esc(x.busid)}')">Attach</button>`}</td>
       </tr>`;}).join("")+`</table>
       <p class="row" style="margin-top:12px"><button class="btn sm danger" onclick="detachAll()">Detach all</button>
-      <span class="note">“Not exported” devices must be bound on the server first.</span></p>`
-    : `<div class="empty">No USB devices found on the server</div>`;
+      <span class="note">Only devices the server operator shared are listed here.</span></p>`
+    : `<div class="empty">No shared USB devices on this server.<br>
+       <span style="font-size:12px">The operator shares devices from their usbferry app (server → USB devices → bind).</span></div>`;
 }
 
 window.attach=async busid=>{

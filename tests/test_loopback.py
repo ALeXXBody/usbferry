@@ -197,7 +197,20 @@ async def main():
     ft, ch, payload = await raw.read()
     obj = json.loads(payload)
     devs = obj.get("data", {}).get("devices", [])
-    check("ctrl usb.list", ft == FT_CTRL and obj.get("id") == rid and len(devs) == 2)
+    check("ctrl usb.list shows only exported devices",
+          ft == FT_CTRL and obj.get("id") == rid and len(devs) == 1
+          and devs[0]["busid"] == "2-1", str(devs))
+
+    # 3b. operator opt-in: expose_unexported restores full inventory
+    srv.cfg["usbip"]["expose_unexported"] = True
+    rid2 = 8
+    await raw.frame(FT_CTRL, CH_CONTROL, json.dumps({"id": rid2, "cmd": "usb.list"}).encode())
+    ft, ch, payload = await raw.read()
+    obj = json.loads(payload)
+    devs = obj.get("data", {}).get("devices", [])
+    check("expose_unexported opt-in shows all devices",
+          obj.get("id") == rid2 and len(devs) == 2, str(devs))
+    srv.cfg["usbip"]["expose_unexported"] = False
 
     # 4. usbip channel byte fidelity ---------------------------------------
     await raw.frame(FT_OPEN, 100, b'{"type":"usbip"}')
@@ -254,7 +267,7 @@ async def main():
         await asyncio.wait_for(c_rb.run(), timeout=10)
     except (asyncio.TimeoutError, asyncio.IncompleteReadError, ConnectionError):
         pass
-    check("on_ready ctrl_request does not deadlock", result.get("devices") == 2,
+    check("on_ready ctrl_request does not deadlock", result.get("devices") == 1,
           str(result))
 
     # 6. client usb forward --------------------------------------------------
@@ -276,7 +289,9 @@ async def main():
 
     # 7. ctrl via client class ------------------------------------------------
     rep = await c2.ctrl_request("usb.list")
-    check("client ctrl_request usb.list", rep.get("ok") and len(rep["data"]["devices"]) == 2)
+    check("client ctrl_request usb.list (exported only)",
+          rep.get("ok") and len(rep["data"]["devices"]) == 1
+          and rep["data"]["devices"][0]["busid"] == "2-1")
 
     # 8. LAN relay both directions --------------------------------------------
     client_tap, test_client_side = pipe_tap_pair()
@@ -305,7 +320,8 @@ async def main():
     code, body = await http_api(web_port, "/api/status", "uf_nothing")
     check("web rejects bad token", code == 401)
     code, body = await http_api(web_port, "/api/usb", token)
-    check("GET /api/usb", code == 200 and len(json.loads(body)["devices"]) == 2)
+    check("GET /api/usb (operator sees all)",
+          code == 200 and len(json.loads(body)["devices"]) == 2)
     code, body = await http_api(web_port, "/api/usb/bind", token, "POST", {"busid": "1-2"})
     ok = json.loads(body)
     check("POST /api/usb/bind", code == 200 and ok["ok"] and usbip.devices[0]["exported"])

@@ -188,6 +188,10 @@ the client configures it via netsh (experimental).
 - usbipd restricted to loopback by an iptables REJECT rule (best effort)
 - Web UI requires a valid token (Bearer) for every API call
 - LAN clients are isolated from each other at L3 unless you bridge
+- **Clients only see devices the operator explicitly shared** — the server's
+  full hardware inventory (cameras, fingerprint readers, …) never crosses the
+  tunnel. Operators who want the old show-everything behavior can set
+  `usbip.expose_unexported: true` in `server.json`.
 
 Caveat: the tunnel is authenticated/encrypted but carries no application-level
 authorization per USB device — any token can attach any *bound* device. Bind

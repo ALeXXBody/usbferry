@@ -513,7 +513,8 @@ DEFAULT_CONFIG = {
     "bind": "0.0.0.0",
     "port": DEFAULT_PORT,
     "web": {"bind": "0.0.0.0", "port": DEFAULT_WEB_PORT},
-    "usbip": {"host": "127.0.0.1", "port": USBIP_PORT, "start_daemon": True, "firewall": True},
+    "usbip": {"host": "127.0.0.1", "port": USBIP_PORT, "start_daemon": True,
+              "firewall": True, "expose_unexported": False},
     "lan": {"enabled": True, "mode": "nat", "subnet": "10.77.0.0/24", "server_ip": "10.77.0.1", "mtu": 1500, "bridge": ""},
     "tokens": [],
     "keepalive": {"interval": 20, "timeout": 60},
@@ -731,9 +732,16 @@ class UsbferryServer:
             session.send(FT_CTRL, CH_CONTROL, json.dumps(obj).encode())
 
         if cmd == "usb.list":
+            devices = await self.usbip.list_devices()
+            # least privilege: clients only ever learn about devices the
+            # operator explicitly shared — never the server's full hardware
+            # inventory. Operator views (web admin / local-server GUI) use
+            # the unfiltered manager routes instead.
+            if not self.cfg["usbip"].get("expose_unexported", False):
+                devices = [d for d in devices if d.get("exported")]
             reply(True, {"available": self.usbip.available,
                          "error": self.usbip.error,
-                         "devices": await self.usbip.list_devices()})
+                         "devices": devices})
         elif cmd == "info":
             reply(True, self.status())
         else:
