@@ -4,6 +4,7 @@
 import asyncio
 import json
 import os
+import socket
 import sys
 import tempfile
 
@@ -79,70 +80,78 @@ async def gui_api(port, path, method="GET", body=None):
 
 async def test_local_server():
     print("[GUI local server]")
+    # pick free ports dynamically (immune to leftover listeners)
+    def free_port():
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        p = s.getsockname()[1]
+        s.close()
+        return p
+    srv_port, web_port = free_port(), free_port()
+
     lan = LanManager({"mode": "nat", "subnet": "10.77.0.0/24", "configure": False},
                      os.path.join(TMP, "state.json"),
                      tap_factory=None)
     gui = GuiApp(state_path=os.path.join(TMP, "gui.json"),
                  usbip_factory=lambda: FakeUsbip({"host": "127.0.0.1", "port": 3240}),
                  lan_manager=lan)
-    port = await gui.start()
+    gui_port = await gui.start()
+    try:
+        c, r = await gui_api(gui_port, "local-server")
+        check("initial: not running", c == 200 and r["running"] is False)
 
-    c, r = await gui_api(port, "local-server")
-    check("initial: not running", c == 200 and r["running"] is False)
+        c, r = await gui_api(gui_port, "local-server/start", "POST",
+                             {"port": srv_port, "web_port": web_port, "lan": False})
+        check("start ok", c == 200 and r.get("ok") is True, str(r))
 
-    c, r = await gui_api(port, "local-server/start", "POST",
-                         {"port": 17575, "web_port": 17580, "lan": False})
-    check("start ok", c == 200 and r.get("ok") is True, str(r))
+        c, r = await gui_api(gui_port, "local-server")
+        check("status running with ports", r.get("running") and r.get("port") == srv_port
+              and r.get("web_port") == web_port, str(r))
+        check("usbip backend active", r.get("usbip", {}).get("available") is True)
+        check("fingerprint present", len(r.get("fingerprint", "")) == 64)
 
-    c, r = await gui_api(port, "local-server")
-    check("status running with ports", r.get("running") and r.get("port") == 17575
-          and r.get("web_port") == 17580, str(r))
-    check("usbip backend active", r.get("usbip", {}).get("available") is True)
-    check("fingerprint present", len(r.get("fingerprint", "")) == 64)
+        # token round-trip: create via GUI API, authenticate against the tunnel
+        c, r = await gui_api(gui_port, "local-server/token", "POST", {"name": "laptop"})
+        check("token created", c == 200 and r.get("token", "").startswith("ns_"), str(r))
+        token = r.get("token", "")
 
-    # token round-trip: create via GUI API, authenticate against the tunnel
-    c, r = await gui_api(port, "local-server/token", "POST", {"name": "laptop"})
-    check("token created", c == 200 and r.get("token", "").startswith("ns_"), str(r))
-    token = r.get("token", "")
+        from netshare import certutil
+        ctx = certutil.client_ssl_context()
+        r2, w2 = await asyncio.open_connection("127.0.0.1", srv_port, ssl=ctx,
+                                               server_hostname="netshare")
+        w2.write(json.dumps({"v": 1, "token": token, "hostname": "gui-test",
+                             "want": []}).encode() + b"\n")
+        await w2.drain()
+        line = await asyncio.wait_for(r2.readline(), 5)
+        hello = json.loads(line)
+        check("GUI-issued token authenticates on the tunnel",
+              hello.get("ok") is True, str(hello))
+        w2.close()
 
-    import ssl as _ssl
-    from netshare import certutil
-    ctx = certutil.client_ssl_context()
-    r2, w2 = await asyncio.open_connection("127.0.0.1", 17575, ssl=ctx,
-                                           server_hostname="netshare")
-    w2.write(json.dumps({"v": 1, "token": token, "hostname": "gui-test",
-                         "want": []}).encode() + b"\n")
-    await w2.drain()
-    line = await asyncio.wait_for(r2.readline(), 5)
-    hello = json.loads(line)
-    check("GUI-issued token authenticates on the tunnel",
-          hello.get("ok") is True, str(hello))
-    w2.close()
+        # persisted for the CLI server too
+        cfg = json.load(open(os.path.join(TMP, "server.json")))
+        names = [t["name"] for t in cfg.get("tokens", [])]
+        check("token persisted to server.json", "laptop" in names)
 
-    # persisted for the CLI server too
-    cfg = json.load(open(os.path.join(TMP, "server.json")))
-    names = [t["name"] for t in cfg.get("tokens", [])]
-    check("token persisted to server.json", "laptop" in names)
+        c, r = await gui_api(gui_port, "local-server/usb")
+        devs = (r.get("data") or {}).get("devices", [])
+        check("usb list via GUI", c == 200 and r.get("ok") and len(devs) == 2)
 
-    c, r = await gui_api(port, "local-server/usb")
-    devs = (r.get("data") or {}).get("devices", [])
-    check("usb list via GUI", c == 200 and r.get("ok") and len(devs) == 2)
+        c, r = await gui_api(gui_port, "local-server/usb/bind", "POST", {"busid": "1-2"})
+        check("bind via GUI", c == 200 and r.get("ok"))
+        c, r = await gui_api(gui_port, "local-server/usb")
+        devs = (r.get("data") or {}).get("devices", [])
+        check("bind took effect", next(d["exported"] for d in devs if d["busid"] == "1-2"))
 
-    c, r = await gui_api(port, "local-server/usb/bind", "POST", {"busid": "1-2"})
-    check("bind via GUI", c == 200 and r.get("ok"))
-    c, r = await gui_api(port, "local-server/usb")
-    devs = (r.get("data") or {}).get("devices", [])
-    check("bind took effect", next(d["exported"] for d in devs if d["busid"] == "1-2"))
+        c, r = await gui_api(gui_port, "local-server/start", "POST", {"port": srv_port})
+        check("double start rejected", r.get("ok") is False)
 
-    c, r = await gui_api(port, "local-server/start", "POST", {"port": 17575})
-    check("double start rejected", r.get("ok") is False)
-
-    c, r = await gui_api(port, "local-server/stop", "POST")
-    check("stop ok", r.get("ok") is True)
-    c, r = await gui_api(port, "local-server")
-    check("stopped", r.get("running") is False)
-
-    await gui.stop()
+        c, r = await gui_api(gui_port, "local-server/stop", "POST")
+        check("stop ok", r.get("ok") is True)
+        c, r = await gui_api(gui_port, "local-server")
+        check("stopped", r.get("running") is False)
+    finally:
+        await gui.stop()  # also stops any local server, freeing its ports
 
 
 async def main():
