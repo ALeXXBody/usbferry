@@ -8,9 +8,11 @@ Three backends behind one async interface (read_frame / write_frame / close):
 """
 
 import asyncio
-import fcntl
 import os
 import struct
+
+if os.name != "nt":
+    import fcntl
 
 IFF_TAP = 0x0002
 IFF_NO_PI = 0x1000
