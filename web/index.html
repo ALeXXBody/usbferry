@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>netshare</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2129; --border:#30363d;
+    --fg:#e6edf3; --dim:#8b949e; --acc:#58a6ff; --ok:#3fb950; --warn:#d29922; --err:#f85149;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{display:flex;align-items:center;gap:12px;padding:14px 22px;border-bottom:1px solid var(--border);background:var(--panel)}
+  header h1{font-size:17px;margin:0;font-weight:600}
+  header h1 span{color:var(--acc)}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--err);box-shadow:0 0 6px var(--err)}
+  .dot.ok{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+  .spacer{flex:1}
+  header .meta{color:var(--dim);font-size:12px}
+  main{max-width:980px;margin:24px auto;padding:0 16px}
+  nav{display:flex;gap:4px;margin-bottom:18px;border-bottom:1px solid var(--border)}
+  nav button{background:none;border:none;border-bottom:2px solid transparent;color:var(--dim);
+    padding:8px 14px;font-size:14px;cursor:pointer}
+  nav button.active{color:var(--fg);border-bottom-color:var(--acc)}
+  nav button:hover{color:var(--fg)}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:14px}
+  .card h3{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{color:var(--dim);text-align:left;font-weight:500;padding:6px 8px;border-bottom:1px solid var(--border)}
+  td{padding:7px 8px;border-bottom:1px solid #21262d;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  .pill{display:inline-block;padding:1px 9px;border-radius:10px;font-size:11px;border:1px solid var(--border)}
+  .pill.ok{color:var(--ok);border-color:var(--ok)} .pill.no{color:var(--dim)}
+  .pill.err{color:var(--err);border-color:var(--err)} .pill.warn{color:var(--warn);border-color:var(--warn)}
+  button.btn{background:var(--panel2);border:1px solid var(--border);color:var(--fg);border-radius:6px;
+    padding:5px 12px;font-size:13px;cursor:pointer}
+  button.btn:hover{border-color:var(--acc);color:var(--acc)}
+  button.btn.danger:hover{border-color:var(--err);color:var(--err)}
+  input[type=text]{background:var(--bg);border:1px solid var(--border);color:var(--fg);
+    border-radius:6px;padding:7px 10px;font-size:13px;width:260px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+  .kv b{display:block;color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:500}
+  .kv span{font-size:14px;word-break:break-all}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;background:var(--bg);
+    border:1px solid var(--border);border-radius:4px;padding:2px 6px;word-break:break-all}
+  .gate{max-width:430px;margin:80px auto;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:28px}
+  .gate h2{margin:0 0 6px;font-size:18px}
+  .gate p{color:var(--dim);font-size:13px}
+  .toast{position:fixed;bottom:20px;right:20px;background:var(--panel2);border:1px solid var(--border);
+    border-radius:8px;padding:10px 16px;font-size:13px;display:none;max-width:420px}
+  .hidden{display:none}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .note{color:var(--dim);font-size:12px;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="dot" id="dot"></div>
+  <h1>net<span>share</span></h1>
+  <div class="spacer"></div>
+  <div class="meta" id="hmeta"></div>
+  <button class="btn" id="relock" title="change API token">lock</button>
+</header>
+
+<div class="gate" id="gate">
+  <h2>Authentication</h2>
+  <p>Enter a netshare token. Create one on the server with:<br>
+     <code>python3 -m netshare add-token --name webui</code></p>
+  <div class="row"><input type="text" id="tokinput" placeholder="ns_..."><button class="btn" id="tokbtn">Unlock</button></div>
+  <p id="gateerr" style="color:var(--err)"></p>
+</div>
+
+<main id="app" class="hidden">
+  <nav>
+    <button data-tab="status" class="active">Status</button>
+    <button data-tab="usb">USB devices</button>
+    <button data-tab="lan">LAN</button>
+    <button data-tab="tokens">Tokens</button>
+  </nav>
+
+  <section id="tab-status">
+    <div class="card"><h3>Server</h3><div class="grid" id="srvgrid"></div></div>
+    <div class="card"><h3>Connected clients</h3><table id="sesstable"></table></div>
+  </section>
+
+  <section id="tab-usb" class="hidden">
+    <div class="card"><h3>USB devices on this server</h3>
+      <table id="usbtable"></table>
+      <p class="note">Bind (export) a device, then attach it from a client machine:
+      <span class="mono" id="attachhint"></span></p>
+    </div>
+  </section>
+
+  <section id="tab-lan" class="hidden">
+    <div class="card"><h3>LAN sharing</h3><div class="grid" id="langrid"></div></div>
+    <div class="card"><h3>Address leases</h3><table id="leasetable"></table></div>
+  </section>
+
+  <section id="tab-tokens" class="hidden">
+    <div class="card"><h3>New token</h3>
+      <div class="row"><input type="text" id="newtokname" placeholder="device name, e.g. laptop">
+      <button class="btn" id="newtokbtn">Create</button></div>
+      <p class="note" id="newtokout"></p>
+    </div>
+    <div class="card"><h3>Tokens</h3><table id="toktable"></table></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+let TOKEN=localStorage.getItem("netshare_token")||"";
+
+function toast(msg,err){const t=$("#toast");t.textContent=msg;t.style.display="block";
+  t.style.borderColor=err?"var(--err)":"var(--border)";clearTimeout(t._h);t._h=setTimeout(()=>t.style.display="none",4000);}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function hum(n){n=+n||0;for(const u of["B","KiB","MiB","GiB"]){if(n<1024)return n.toFixed(1)+" "+u;n/=1024;}return n.toFixed(1)+" TiB";}
+function up(s){s=+s||0;const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);
+  return (d?d+"d ":"")+(h?h+"h ":"")+m+"m";}
+
+async function api(path,method="GET",body){
+  const r=await fetch("/api/"+path,{method,headers:{
+      "Authorization":"Bearer "+TOKEN,"Content-Type":"application/json"},
+    body:body?JSON.stringify(body):undefined});
+  if(r.status===401){showGate("invalid token");throw new Error("unauthorized");}
+  return r.json();
+}
+
+function showGate(err){$("#gate").classList.remove("hidden");$("#app").classList.add("hidden");
+  $("#hmeta").textContent="";$("#dot").classList.remove("ok");if(err)$("#gateerr").textContent=err;}
+function showApp(){$("#gate").classList.add("hidden");$("#app").classList.remove("hidden");}
+
+$("#tokbtn").onclick=async()=>{TOKEN=$("#tokinput").value.trim();
+  if(!TOKEN)return;localStorage.setItem("netshare_token",TOKEN);
+  try{await api("status");showApp();refresh();}catch(e){}};
+$("#tokinput").addEventListener("keydown",e=>{if(e.key==="Enter")$("#tokbtn").click();});
+$("#relock").onclick=()=>{localStorage.removeItem("netshare_token");TOKEN="";showGate();};
+
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("active",x===b));
+  for(const id of["status","usb","lan","tokens"])$("#tab-"+id).classList.toggle("hidden",id!==b.dataset.tab);
+});
+
+function kv(k,v){return `<div class="kv"><b>${k}</b><span>${v}</span></div>`;}
+
+async function refresh(){
+  let st;try{st=await api("status");}catch(e){return;}
+  $("#dot").classList.add("ok");
+  $("#hmeta").textContent=`v${st.version} · ${st.sessions.length} client(s)`;
+  $("#srvgrid").innerHTML=
+    kv("uptime",up(st.uptime))+
+    kv("tunnel port",st.port)+
+    kv("usb sharing",st.usbip.available?`<span class="pill ok">ready</span>`
+        :`<span class="pill err">unavailable</span>`)+
+    kv("lan sharing",st.lan.active?`<span class="pill ok">${esc(st.lan.mode)}</span>`
+        :`<span class="pill warn">off</span>`)+
+    kv("lan subnet",esc(st.lan.subnet))+
+    kv("cert fingerprint",`<span class="mono">${esc(st.fingerprint.slice(0,32))}…</span>`);
+  const s=st.sessions;
+  $("#sesstable").innerHTML=s.length?
+    `<tr><th>client</th><th>token</th><th>address</th><th>lan ip</th><th>down</th><th>up</th></tr>`+
+    s.map(x=>`<tr><td>${esc(x.hostname)}</td><td>${esc(x.token)}</td><td>${esc(x.addr)}</td>
+      <td>${esc(x.lan||"–")}</td><td>${hum(x.rx)}</td><td>${hum(x.tx)}</td></tr>`).join(""):
+    `<tr><td style="color:var(--dim)">no clients connected</td></tr>`;
+  refreshUsb();refreshLan(st);refreshTokens();
+}
+
+async function refreshUsb(){
+  const d=await api("usb").catch(()=>null);if(!d)return;
+  const hint=`netshare attach <server> -b <busid> --token <token>`;
+  $("#attachhint").textContent=hint;
+  const dev=d.devices||[];
+  $("#usbtable").innerHTML=!d.available
+    ?`<tr><td style="color:var(--warn)">usbip backend unavailable: ${esc(d.error||"?")}</td></tr>`
+    :dev.length?`<tr><th>busid</th><th>exported</th><th>vid:pid</th><th>description</th><th></th></tr>`+
+      dev.map(x=>`<tr><td class="mono">${esc(x.busid)}</td>
+        <td>${x.exported?'<span class="pill ok">exported</span>':'<span class="pill no">local</span>'}</td>
+        <td class="mono">${esc(x.vidpid)}</td><td>${esc(x.desc)}</td>
+        <td><button class="btn" onclick="bindUsb('${esc(x.busid)}',${x.exported})">${x.exported?"unbind":"bind"}</button></td></tr>`).join("")
+    :`<tr><td style="color:var(--dim)">no USB devices found</td></tr>`;
+}
+window.bindUsb=async(busid,exported)=>{
+  const r=await api("usb/"+(exported?"unbind":"bind"),"POST",{busid});
+  toast(r.message||(exported?"unbound":"bound")+(r.ok?"":" (failed)"),!r.ok);
+  refreshUsb();
+};
+
+function refreshLan(st){
+  $("#langrid").innerHTML=
+    kv("mode",esc(st.lan.mode||"–"))+
+    kv("state",st.lan.active?'<span class="pill ok">active</span>':`<span class="pill warn">off</span>`)+
+    kv("subnet",esc(st.lan.subnet||"–"))+
+    kv("server ip",esc(st.lan.server_ip||"–"))+
+    (st.lan.error?kv("error",`<span style="color:var(--warn)">${esc(st.lan.error)}</span>`):"");
+  const l=st.lan.leases||[];
+  $("#leasetable").innerHTML=l.length?
+    `<tr><th>key</th><th>assigned ip</th></tr>`+
+    l.map(x=>`<tr><td class="mono">${esc(x.key)}</td><td class="mono">${esc(x.ip)}</td></tr>`).join("")
+    :`<tr><td style="color:var(--dim)">no leases yet</td></tr>`;
+}
+
+async function refreshTokens(){
+  const r=await api("tokens").catch(()=>null);if(!r)return;
+  $("#toktable").innerHTML=r.tokens.length?
+    `<tr><th>name</th><th>created</th><th></th></tr>`+
+    r.tokens.map(t=>`<tr><td>${esc(t.name)}</td><td>${esc(t.created)}</td>
+      <td><button class="btn danger" onclick="delTok('${esc(t.name)}')">remove</button></td></tr>`).join("")
+    :`<tr><td style="color:var(--dim)">no tokens</td></tr>`;
+}
+window.delTok=async name=>{const r=await api("tokens/delete","POST",{name});toast(r.ok?"removed":"not found",!r.ok);refreshTokens();};
+$("#newtokbtn").onclick=async()=>{
+  const name=$("#newtokname").value.trim();if(!name)return;
+  const r=await api("tokens","POST",{name});
+  if(r.ok){$("#newtokout").innerHTML=`token for <b>${esc(name)}</b> (shown once):
+    <div class="mono" style="margin-top:6px">${esc(r.token)}</div>`;$("#newtokname").value="";refreshTokens();}
+  else toast(r.error||"failed",true);
+};
+
+if(TOKEN){api("status").then(()=>{showApp();refresh();setInterval(refresh,3000);}).catch(()=>{});}
+</script>
+</body>
+</html>

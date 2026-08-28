@@ -1,0 +1,16 @@
+[Unit]
+Description=netshare server (USB + LAN over encrypted IP tunnel)
+Documentation=https://github.com/ALeXXBody/netshare
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/netshare
+ExecStart=/usr/bin/python3 -m netshare serve
+Restart=on-failure
+RestartSec=3
+# root required: usbip bind/unbind, TAP interface, iptables NAT rules
+
+[Install]
+WantedBy=multi-user.target
