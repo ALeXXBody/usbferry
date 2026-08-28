@@ -89,6 +89,12 @@
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .hidden{display:none !important}
   a{color:var(--acc)}
+  #footer{margin-top:auto;padding:14px 22px;border-top:1px solid var(--border);
+    text-align:center;font-size:12px;color:var(--dim)}
+  #footer a{color:var(--acc);text-decoration:none;font-weight:550}
+  #footer a:hover{text-decoration:underline}
+  .coffee{display:inline-flex;align-items:center;gap:5px}
+  .coffee:before{content:"☕";font-size:13px}
 
   /* welcome */
   .hero{max-width:640px;margin:6vh auto 0;text-align:center}
@@ -123,7 +129,9 @@
 <body>
 
 <aside id="side">
-  <h1><span style="font-size:19px">⇄</span> usb<b>ferry</b></h1>
+  <h1><span style="font-size:19px">⇄</span> usb<b>ferry</b>
+    <a class="coffee" style="margin-left:auto;font-size:12px" target="_blank"
+       href="https://github.com/ALeXXBody" title="Support usbferry">Buy me a coffee</a></h1>
   <div class="label">Servers · connect</div>
   <div class="slist" id="slist"></div>
   <button class="btn" id="addsrv">+ Add server</button>
@@ -171,6 +179,9 @@
           and use its USB devices over the internet.</div>
         </div>
       </div>
+      <p style="margin-top:22px;font-size:13px">
+        <a class="coffee" target="_blank" href="https://github.com/ALeXXBody">Buy me a coffee</a>
+        — if usbferry saves you time</p>
     </div>
 
     <!-- ============ CLIENT VIEW ============ -->
@@ -256,6 +267,11 @@
         </section>
       </div>
     </div>
+  </div>
+
+  <div id="footer">
+    usbferry — share USB &amp; LAN over the internet ·
+    <a class="coffee" target="_blank" href="https://github.com/ALeXXBody">Buy me a coffee</a>
   </div>
 </div>
 

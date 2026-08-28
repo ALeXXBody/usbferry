@@ -212,6 +212,65 @@ async def main():
           obj.get("id") == rid2 and len(devs) == 2, str(devs))
     srv.cfg["usbip"]["expose_unexported"] = False
 
+    # 3c. channel cap: a rogue client must not open unlimited channels
+    flood_base = 200  # stay clear of channel ids used by later tests
+    for ch in range(flood_base, flood_base + srv.max_channels):
+        await raw.frame(FT_OPEN, ch, b'{"type":"usbip"}')
+    await raw.frame(FT_OPEN, flood_base + srv.max_channels, b'{"type":"usbip"}')
+    ft, chn, payload = await asyncio.wait_for(raw.read(), 5)
+    check("channel cap enforced",
+          ft == FT_CLOSE and chn == flood_base + srv.max_channels
+          and b"too many channels" in payload, f"{ft}/{chn}/{payload!r}")
+    check("server alive after channel flood", len(srv.sessions) == 1)
+    for ch in range(flood_base, flood_base + srv.max_channels):
+        await raw.frame(FT_CLOSE, ch)
+    await asyncio.sleep(0.3)  # let the server tear the sockets down
+
+    # 3d. oversized garbage line must not kill the server
+    from usbferry import certutil as _cu
+    ctx_bad = _cu.client_ssl_context()
+    r3, w3 = await asyncio.open_connection("127.0.0.1", port, ssl=ctx_bad,
+                                           server_hostname="usbferry")
+    w3.write(b"A" * 200000)  # no newline, way over the hello cap
+    await w3.drain()
+    w3.close()
+    await asyncio.sleep(0.2)
+    ok_after = False
+    try:
+        r4, w4 = await asyncio.open_connection("127.0.0.1", port, ssl=ctx_bad,
+                                               server_hostname="usbferry")
+        w4.write(json.dumps({"v": 1, "token": "uf_bogus", "hostname": "t",
+                             "want": []}).encode() + b"\n")
+        await w4.drain()
+        line4 = await asyncio.wait_for(r4.readline(), 5)
+        ok_after = json.loads(line4).get("ok") is False  # rejected, but alive
+        w4.close()
+    except Exception:
+        ok_after = False
+    check("server alive after oversized hello", ok_after)
+
+    # 3e. auth brute-force lockout, then recovery after the window
+    srv.auth_fail_window = 0.3  # shrink for the test
+    for i in range(srv.auth_fail_limit):
+        b = RawClient("uf_wrong")
+        rep = await b.connect(port, want=[])
+        b.close()
+        if rep.get("ok") is not False:
+            check(f"brute-force attempt {i} rejected", False, str(rep))
+            break
+    locked = RawClient(token)
+    rep = await locked.connect(port, want=[])
+    check("valid token locked out during brute-force window",
+          rep.get("ok") is False, str(rep))
+    locked.close()
+    await asyncio.sleep(0.4)  # window expires
+    good = RawClient(token)
+    rep = await good.connect(port, want=[])
+    check("valid token accepted after lockout window", rep.get("ok") is True, str(rep))
+    good.close()
+    srv.auth_fail_window = 300.0
+    srv._auth_fails.clear()  # don't poison later tests on the same IP
+
     # 4. usbip channel byte fidelity ---------------------------------------
     await raw.frame(FT_OPEN, 100, b'{"type":"usbip"}')
     blob = bytes(range(256)) * 41  # 10496 bytes
@@ -334,6 +393,14 @@ async def main():
     await asyncio.sleep(0.3)
     echo_srv.close()
     await srv.stop()
+
+    # atomic config writes
+    from usbferry.common import load_json as _lj, save_json as _sj
+    apath = os.path.join(TMP, "atomic.json")
+    _sj(apath, {"tokens": [{"name": "x", "hash": "ab"}]})
+    _sj(apath, {"tokens": [{"name": "x", "hash": "cd"}]})
+    check("save_json round-trips", _lj(apath, {}).get("tokens", [{}])[0].get("hash") == "cd")
+    check("no temp file left behind", not os.path.exists(apath + ".tmp"))
 
     print(f"\n{'='*46}\n{len(PASS)} passed, {len(FAIL)} failed")
     if FAIL:

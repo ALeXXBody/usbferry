@@ -103,6 +103,43 @@ async def main():
     c, r = await gui_api(gui_port, "connect", "POST", {"name": "nope"})
     check("unknown profile -> error state", r["status"] == "error" and "no profile" in r["error"])
 
+    # [auto-reconnect] server dies unexpectedly -> GUI reconnects when it's back
+    print("[auto-reconnect]")
+    c, r = await gui_api(gui_port, "connect", "POST", {"name": "lab", "trust": True})
+    check("reconnected for the test", r["status"] == "connected", str(r.get("error")))
+    await srv.stop()  # unexpected loss
+    for _ in range(50):
+        c, st = await gui_api(gui_port, "status")
+        if st["status"] != "connected":
+            break
+        await asyncio.sleep(0.1)
+    check("connection loss detected", st["status"] in ("error", "disconnected"),
+          st["status"])
+
+    # restart the server on the SAME port with the SAME config (same cert,
+    # same tokens) -> the GUI should find its way back on its own
+    s_tap, _ = pipe_tap_pair()
+    lan2 = LanManager({"mode": "nat", "subnet": "10.77.0.0/24", "configure": False},
+                      os.path.join(TMP, "state.json"), tap_factory=lambda: s_tap)
+    srv = UsbferryServer(os.path.join(TMP, "server.json"),
+                         usbip_manager=FakeUsbip({"host": "127.0.0.1", "port": echo_port}),
+                         lan_manager=lan2)
+    srv.cfg.update({"bind": "127.0.0.1", "port": port,
+                    "web": {"bind": "127.0.0.1", "port": 0},
+                    "usbip": {"host": "127.0.0.1", "port": echo_port,
+                              "start_daemon": False, "firewall": False}})
+    await srv.start()  # tokens load from disk: same token, same cert
+    reconnected = False
+    for _ in range(120):  # up to ~24s (backoff is 4-10s)
+        c, st = await gui_api(gui_port, "status")
+        if st["status"] == "connected":
+            reconnected = True
+            break
+        await asyncio.sleep(0.2)
+    check("auto-reconnected after server restart", reconnected, st["status"])
+    c, r = await gui_api(gui_port, "disconnect", "POST")
+    check("manual disconnect stops the loop", r["status"] == "disconnected")
+
     code, body = await http_api(gui_port, "/", "x")
     check("GET / serves app.html", code == 200 and b"USB &amp; LAN" in body)
 

@@ -545,8 +545,31 @@ class UsbferryServer:
             self.lan = LanManager(self.cfg["lan"], self.state_path)
         self.webui = None
         self._ka_task = None
+        # per-IP failed-auth tracking (brute-force throttling)
+        self._auth_fails: dict[str, list[float]] = {}
+        self.auth_fail_limit = 10
+        self.auth_fail_window = 300.0  # seconds
+        self.max_channels = 16  # per session (usbip sockets)
 
     # ----- tokens -----------------------------------------------------------
+    def authorize(self, token: str, ip: str = "?") -> str | None:
+        """verify_token with per-IP brute-force throttling. Returns the token
+        name, or None (rejected/locked out)."""
+        now = time.monotonic()
+        fails = [t for t in self._auth_fails.get(ip, ()) if now - t < self.auth_fail_window]
+        if len(fails) >= self.auth_fail_limit:
+            self._auth_fails[ip] = fails
+            log.warning("auth lockout for %s (%d failed attempts)", ip, len(fails))
+            return None
+        name = self.verify_token(token)
+        if name:
+            if fails:
+                self._auth_fails.pop(ip, None)
+        else:
+            fails.append(now)
+            self._auth_fails[ip] = fails
+        return name
+
     def add_token(self, name: str) -> str:
         token = new_token()
         tokens = self.cfg.setdefault("tokens", [])
@@ -645,6 +668,7 @@ class UsbferryServer:
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         addr = writer.get_extra_info("peername")
         session = Session(self, reader, writer, addr)
+        peer_ip = addr[0] if isinstance(addr, tuple) and addr else "?"
         try:
             writer.get_extra_info("socket").setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         except OSError:
@@ -655,7 +679,7 @@ class UsbferryServer:
                 raise ProtocolError("hello too large")
             hello = json.loads(line)
             token = hello.get("token", "")
-            name = self.verify_token(token)
+            name = self.authorize(token, peer_ip)
             if not name:
                 writer.write(json.dumps({"ok": False, "error": "invalid token"}).encode() + b"\n")
                 await writer.drain()
@@ -685,6 +709,10 @@ class UsbferryServer:
         except (asyncio.TimeoutError, asyncio.IncompleteReadError, ConnectionResetError,
                 json.JSONDecodeError, ProtocolError, OSError) as e:
             log.debug("session %s ended (%r)", session.id, e)
+        except Exception as e:  # noqa: BLE001 — a handler must never kill the server
+            # includes asyncio.LimitOverrunError/ValueError from oversized
+            # lines, TapError from LAN pool exhaustion, ...
+            log.warning("session %s aborted (%s: %s)", session.id, type(e).__name__, e)
         finally:
             await self._cleanup_session(session)
 
@@ -760,6 +788,12 @@ class UsbferryServer:
         ctype = req.get("type", "usbip")
 
         if ctype == "usbip":
+            if len(session.channels) >= session.server.max_channels:
+                # resource-exhaustion guard: each channel holds a socket to
+                # usbipd; a rogue client must not open thousands
+                session.send(FT_CLOSE, ch, b'{"reason":"too many channels"}')
+                await session.writer.drain()
+                return
             if not self.usbip.available:
                 session.send(FT_CLOSE, ch, json.dumps(
                     {"reason": f"usbip unavailable on server: {self.usbip.error}"}).encode())

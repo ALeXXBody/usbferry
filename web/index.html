@@ -53,12 +53,18 @@
   .hidden{display:none}
   .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .note{color:var(--dim);font-size:12px;margin-top:8px}
+  footer{max-width:980px;margin:0 auto;padding:14px 16px;text-align:center;
+    font-size:12px;color:var(--dim);border-top:1px solid var(--border)}
+  footer a{color:var(--acc);text-decoration:none;font-weight:550}
+  .coffee:before{content:"☕";margin-right:5px}
 </style>
 </head>
 <body>
 <header>
   <div class="dot" id="dot"></div>
   <h1>usb<span>ferry</span></h1>
+  <a class="coffee" style="color:var(--acc);text-decoration:none;font-size:12.5px"
+     target="_blank" href="https://github.com/ALeXXBody" title="Support usbferry">Buy me a coffee</a>
   <div class="spacer"></div>
   <div class="meta" id="hmeta"></div>
   <button class="btn" id="relock" title="change API token">lock</button>
@@ -107,6 +113,11 @@
     <div class="card"><h3>Tokens</h3><table id="toktable"></table></div>
   </section>
 </main>
+
+<footer>
+  usbferry — share USB &amp; LAN over the internet ·
+  <a class="coffee" target="_blank" href="https://github.com/ALeXXBody">Buy me a coffee</a>
+</footer>
 
 <div class="toast" id="toast"></div>
 

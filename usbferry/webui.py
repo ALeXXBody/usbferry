@@ -104,7 +104,9 @@ class WebUI:
         if not token:
             self._respond(writer, 401, {"error": "missing bearer token"})
             return
-        if not self.server.verify_token(token):
+        peer = writer.get_extra_info("peername")
+        peer_ip = peer[0] if isinstance(peer, tuple) and peer else "?"
+        if not self.server.authorize(token, peer_ip):
             self._respond(writer, 401, {"error": "invalid token"})
             return
 

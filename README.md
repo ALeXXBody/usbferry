@@ -3,6 +3,8 @@
 Share **USB devices** and a **LAN connection** across networks or the internet —
 with a modern desktop GUI, a CLI, and a web-managed server.
 
+[☕ Buy me a coffee](https://github.com/ALeXXBody) — if usbferry saves you time.
+
 On Windows, USB sharing builds on [usbipd-win](https://github.com/dorssel/usbipd-win)
 (the standard open-source USB/IP server for Windows): **usbferry automates all
 of it for you** — it detects whether usbipd-win is installed, can download and

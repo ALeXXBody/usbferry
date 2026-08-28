@@ -49,6 +49,9 @@ class GuiApp:
         self.status = "disconnected"   # disconnected|connecting|connected|needs_trust|error
         self.error: str | None = None
         self.needed_fp: str | None = None
+        self._manual_disconnect = False
+        self._reconnect_profile: str | None = None
+        self._reconnect_attempts = 0
         self.attached: list[str] = []
         self.logs: deque = deque(maxlen=300)
         self.since = 0
@@ -86,7 +89,8 @@ class GuiApp:
 
     # ----- connection -------------------------------------------------------
     async def connect_profile(self, name: str, trust: bool = False, lan: bool | None = None):
-        await self.disconnect()
+        await self.disconnect()  # sets _manual_disconnect; reset below
+        self._manual_disconnect = False
         p = next((x for x in self.profiles if x["name"] == name), None)
         if not p:
             self.status, self.error = "error", f"no profile named {name}"
@@ -118,6 +122,8 @@ class GuiApp:
         self.client = cli
         self.profile_name = name
         self.since = time.time()
+        self._reconnect_profile = name
+        self._reconnect_attempts = 0
         self.client_task = asyncio.create_task(self._run_client(cli, use_lan))
         try:
             await asyncio.wait_for(cli.ready.wait(), timeout=8)
@@ -139,12 +145,39 @@ class GuiApp:
             if self.status == "connected":
                 self.status = "error"
         finally:
+            if self.attached:
+                # best-effort: release local vhci ports (the tunnel is gone,
+                # but the attach can outlive it on Windows)
+                try:
+                    await usbip_detach_ours()
+                except Exception:
+                    pass
             self.attached = []
             self.client = None
             if self.status not in ("error", "needs_trust"):
                 self.status = "disconnected"
+            if (not self._manual_disconnect and self._reconnect_profile
+                    and self._reconnect_attempts < 6):
+                asyncio.create_task(self._reconnect_later())
+
+    async def _reconnect_later(self):
+        """Auto-reconnect after an unexpected loss (backoff, max 6 tries)."""
+        profile = self._reconnect_profile
+        while (not self._manual_disconnect and self._reconnect_profile == profile
+               and self.client is None and self._reconnect_attempts < 6):
+            await asyncio.sleep(4 if self._reconnect_attempts < 2 else 10)
+            if (self._manual_disconnect or self._reconnect_profile != profile
+                    or self.client is not None):
+                return
+            self._reconnect_attempts += 1
+            self.log("auto-reconnect attempt %d to '%s' ...",
+                     self._reconnect_attempts, profile)
+            await self.connect_profile(profile, trust=True)
+            if self.status in ("connected", "needs_trust"):
+                return
 
     async def disconnect(self):
+        self._manual_disconnect = True
         if self.client_task:
             if self.attached:
                 ports = await usbip_detach_ours()
