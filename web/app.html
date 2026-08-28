@@ -123,7 +123,7 @@
 <body>
 
 <aside id="side">
-  <h1><span style="font-size:19px">⇄</span> net<b>share</b></h1>
+  <h1><span style="font-size:19px">⇄</span> usb<b>ferry</b></h1>
   <div class="label">Servers · connect</div>
   <div class="slist" id="slist"></div>
   <button class="btn" id="addsrv">+ Add server</button>
@@ -475,7 +475,10 @@ async function refreshLocalTokens(){
   $("#stoktable").innerHTML=toks.length?
     `<tr><th>name</th><th>created</th><th></th></tr>`+
     toks.map(t=>`<tr><td>${esc(t.name)}</td><td>${esc(t.created)}</td>
-      <td><button class="btn sm danger" onclick="lsDelTok('${esc(t.name)}')">remove</button></td></tr>`).join("")
+      <td><button class="btn sm danger" onclick="lsDelTok('${esc(t.name)}')">remove</button></td></tr>`).join("")+
+    `</table><p class="row" style="margin-top:12px">
+      <button class="btn sm" onclick="showAgain()">Show token created this session</button>
+      <span class="note">(tokens are stored hashed; plaintext exists only until the app closes)</span></p>`
     :`<tr><td style="color:var(--dim)">no tokens yet</td></tr>`;
 }
 window.lsDelTok=async name=>{
@@ -485,25 +488,45 @@ window.lsDelTok=async name=>{
 $("#stokbtn").onclick=async()=>{
   const name=$("#stokname").value.trim();if(!name)return;
   const r=await api("local-server/token","POST",{name});
-  if(r.ok){
-    showModal(`<h2>Token created</h2>
-      <p style="color:var(--dim);font-size:13px">Give this to the client device — shown only once:</p>
-      <div class="fp" style="color:var(--ok)">${esc(r.token)}</div>
-      <div class="row" style="justify-content:flex-end">
-        <button class="btn" onclick="copyTok('${esc(r.token)}')">Copy</button>
-        <button class="btn primary" onclick="closeModal()">Done</button></div>`);
-    $("#stokname").value="";refreshLocalTokens();
-  } else flash(r.error||"failed",true);
+  if(r.ok){ showTokenModal(r.name, r.token, "Token created"); $("#stokname").value="";refreshLocalTokens(); }
+  else flash(r.error||"failed",true);
+};
+function showTokenModal(name, token, title){
+  showModal(`<h2>${esc(title||"Token")}</h2>
+    <p style="color:var(--dim);font-size:13px">Token for <b>${esc(name)}</b> — this is the
+    password clients use to connect. It can be shown again while the app is open:</p>
+    <div class="fp" style="color:var(--ok)">${esc(token)}</div>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" onclick="copyTok('${esc(token)}')">Copy</button>
+      <button class="btn primary" onclick="closeModal()">Done</button></div>`);
+}
+window.showAgain=async()=>{
+  const r=await api("local-server/token/last");
+  if(r.ok) showTokenModal(r.name, r.token, "Token created this session");
+  else flash(r.error||"no token available", true);
 };
 window.copyTok=async t=>{try{await navigator.clipboard.writeText(t);flash("copied to clipboard");}catch(e){}};
 
 $("#srvstartbtn").onclick=async()=>{
-  const r=await api("local-server/start","POST",{
+  const btn=$("#srvstartbtn"); btn.disabled=true;
+  let r;
+  try{ r=await api("local-server/start","POST",{
     port:+$("#l_port").value||7575, web_port:+$("#l_webport").value||7580,
-    lan:$("#l_lan").checked});
-  if(!r.ok){flash(r.error||"failed to start",true);return;}
+    lan:$("#l_lan").checked}); }
+  catch(e){ r={ok:false,error:"cannot reach the app backend: "+e}; }
+  btn.disabled=false;
+  if(!r.ok){
+    showModal(`<h2>Could not start the server</h2>
+      <p style="color:var(--err);font-size:13px;word-break:break-word">${esc(r.error||"unknown error")}</p>
+      <p style="color:var(--dim);font-size:12.5px">If this mentions a port, another program
+      (or an already-running usbferry server) may be using it — try a different port.</p>
+      <div class="row" style="justify-content:flex-end">
+        <button class="btn primary" onclick="closeModal()">OK</button></div>`);
+    return;
+  }
   ST=await api("status");LS=ST.local_server;
   setView("server");
+  if(r.auto_token) showTokenModal(r.auto_token.name, r.auto_token.token, "Server started — your first token");
 };
 $("#srvstopbtn").onclick=async()=>{
   await api("local-server/stop","POST");
@@ -579,6 +602,7 @@ window.delProfile=async name=>{
 function showModal(html){$("#mbox").innerHTML=html;$("#modal").classList.add("show");}
 window.closeModal=()=>$("#modal").classList.remove("show");
 $("#modal").addEventListener("mousedown",e=>{if(e.target.id==="modal")closeModal();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});
 
 /* ---------- toast ---------- */
 let th;

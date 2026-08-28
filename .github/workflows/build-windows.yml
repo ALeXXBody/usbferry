@@ -35,7 +35,7 @@ jobs:
       - name: Build exes
         shell: pwsh
         run: |
-          pip install pyinstaller pywebview pythonnet
+          pip install pyinstaller pywebview pythonnet cryptography
           # GUI exe: windowed (no console window at all), GUI is the default command
           pyinstaller --onefile --windowed --name usbferry `
             --icon assets/usbferry.ico `

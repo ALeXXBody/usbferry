@@ -78,6 +78,20 @@ async def gui_api(port, path, method="GET", body=None):
     return code, json.loads(out)
 
 
+async def _auth_ok(srv_port: int, token: str) -> bool:
+    """Authenticate against the tunnel at srv_port with token; True if accepted."""
+    from usbferry import certutil
+    ctx = certutil.client_ssl_context()
+    r2, w2 = await asyncio.open_connection("127.0.0.1", srv_port, ssl=ctx,
+                                           server_hostname="usbferry")
+    w2.write(json.dumps({"v": 1, "token": token, "hostname": "t",
+                         "want": []}).encode() + b"\n")
+    await w2.drain()
+    line = await asyncio.wait_for(r2.readline(), 5)
+    w2.close()
+    return json.loads(line).get("ok") is True
+
+
 async def test_local_server():
     print("[GUI local server]")
     # pick free ports dynamically (immune to leftover listeners)
@@ -103,12 +117,20 @@ async def test_local_server():
         c, r = await gui_api(gui_port, "local-server/start", "POST",
                              {"port": srv_port, "web_port": web_port, "lan": False})
         check("start ok", c == 200 and r.get("ok") is True, str(r))
+        auto = r.get("auto_token") or {}
+        check("auto token generated on first start",
+              auto.get("token", "").startswith("uf_") and bool(auto.get("name")),
+              str(r))
+        auto_token = auto.get("token", "")
+        check("auto token authenticates on the tunnel",
+              (await _auth_ok(srv_port, auto_token)), "auth failed")
 
         c, r = await gui_api(gui_port, "local-server")
         check("status running with ports", r.get("running") and r.get("port") == srv_port
               and r.get("web_port") == web_port, str(r))
         check("usbip backend active", r.get("usbip", {}).get("available") is True)
         check("fingerprint present", len(r.get("fingerprint", "")) == 64)
+        check("tokens listed in status", len(r.get("tokens", [])) == 1, str(r.get("tokens")))
 
         # token round-trip: create via GUI API, authenticate against the tunnel
         c, r = await gui_api(gui_port, "local-server/token", "POST", {"name": "laptop"})
@@ -132,6 +154,11 @@ async def test_local_server():
         cfg = json.load(open(os.path.join(TMP, "server.json")))
         names = [t["name"] for t in cfg.get("tokens", [])]
         check("token persisted to server.json", "laptop" in names)
+
+        # show-again route returns the token created this session
+        c, r = await gui_api(gui_port, "local-server/token/last")
+        check("token/last re-shows session token",
+              r.get("ok") and r.get("token", "").startswith("uf_"), str(r))
 
         c, r = await gui_api(gui_port, "local-server/usb")
         devs = (r.get("data") or {}).get("devices", [])

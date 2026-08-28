@@ -55,6 +55,7 @@ class GuiApp:
         self.port = 0
         self.local_server = None      # UsbferryServer when running
         self.local_ports: tuple[int, int] = (0, 0)
+        self.last_created_token: tuple[str, str] | None = None  # (name, plaintext), session only
         self.app_path = next((p for p in APP_CANDIDATES if os.path.exists(p)), APP_CANDIDATES[1])
 
     # ----- lifecycle --------------------------------------------------------
@@ -217,7 +218,18 @@ class GuiApp:
                  "on" if srv.lan.active else "off")
         if not srv.usbip.available and srv.usbip.error:
             self.log("usb sharing: %s", srv.usbip.error)
-        return {"ok": True}
+
+        # auto-generate a client token on first start so the server is
+        # immediately usable
+        result = {"ok": True}
+        if not srv.cfg.get("tokens"):
+            import platform as _platform
+            name = (_platform.node() or "client").strip().lower()[:24] or "client"
+            token = srv.add_token(name)
+            self.last_created_token = (name, token)
+            result["auto_token"] = {"name": name, "token": token}
+            self.log("auto-generated token '%s' (shown once in the app)", name)
+        return result
 
     async def local_server_stop(self) -> dict:
         if not self.local_server:
@@ -239,6 +251,8 @@ class GuiApp:
         st["running"] = True
         st["elevated"] = is_elevated()
         st["web_port"] = self.local_ports[1]
+        st["tokens"] = [{"name": t["name"], "created": t.get("created", "?")}
+                        for t in self.local_server.cfg.get("tokens", [])]
         return st
 
     # ----- status ---------------------------------------------------------------
@@ -365,8 +379,18 @@ class GuiApp:
                     respond(writer, 400, {"ok": False, "error": "name required"})
                     return
                 token = self.local_server.add_token(name)
+                self.last_created_token = (name, token)
                 self.log("created token '%s' for the local server", name)
                 respond(writer, 200, {"ok": True, "name": name, "token": token})
+            elif api == "local-server/token/last" and method == "GET":
+                # re-show the token created this session (nothing is stored
+                # in plaintext on disk)
+                if self.last_created_token:
+                    name, token = self.last_created_token
+                    respond(writer, 200, {"ok": True, "name": name, "token": token})
+                else:
+                    respond(writer, 200, {"ok": False,
+                                          "error": "no token was created this session"})
             elif api == "local-server/token/delete" and method == "POST":
                 if not self.local_server:
                     respond(writer, 400, {"ok": False, "error": "server not running"})

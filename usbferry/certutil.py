@@ -29,6 +29,50 @@ def peer_fingerprint(transport: ssl.SSLObject | ssl.SSLSocket) -> str:
     return _fingerprint_der(der)
 
 
+def _generate_openssl(cert: str, key: str) -> None:
+    rc = subprocess.call([
+        "openssl", "req", "-x509", "-newkey", "ec",
+        "-pkeyopt", "ec_paramgen_curve:prime256v1",
+        "-keyout", key, "-out", cert,
+        "-days", "3650", "-nodes",
+        "-subj", "/CN=usbferry",
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if rc != 0:
+        raise RuntimeError(f"openssl exited with {rc}")
+
+
+def _generate_cryptography(cert: str, key: str) -> None:
+    """Pure-Python cert generation (no openssl CLI) via the cryptography package."""
+    import datetime
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.x509.oid import NameOID
+
+    signing_key = ec.generate_private_key(ec.SECP256R1())
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "usbferry")])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert_obj = (
+        x509.CertificateBuilder()
+        .subject_name(name)
+        .issuer_name(name)
+        .public_key(signing_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - datetime.timedelta(days=1))
+        .not_valid_after(now + datetime.timedelta(days=3650))
+        .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+        .sign(signing_key, hashes.SHA256())
+    )
+    with open(key, "wb") as f:
+        f.write(signing_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption()))
+    with open(cert, "wb") as f:
+        f.write(cert_obj.public_bytes(serialization.Encoding.PEM))
+
+
 def ensure_cert(cert_dir: str) -> tuple[str, str, str]:
     """Return (cert_path, key_path, sha256_fingerprint), creating cert if needed."""
     os.makedirs(cert_dir, exist_ok=True)
@@ -37,19 +81,18 @@ def ensure_cert(cert_dir: str) -> tuple[str, str, str]:
 
     if not (os.path.exists(cert) and os.path.exists(key)):
         log.info("generating self-signed TLS certificate in %s", cert_dir)
-        # sync subprocess is fine: happens once, before the event loop matters
-        rc = subprocess.call([
-            "openssl", "req", "-x509", "-newkey", "ec",
-            "-pkeyopt", "ec_paramgen_curve:prime256v1",
-            "-keyout", key, "-out", cert,
-            "-days", "3650", "-nodes",
-            "-subj", "/CN=usbferry",
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if rc != 0:
+        errors = []
+        for fn in (_generate_openssl, _generate_cryptography):
+            try:
+                fn(cert, key)
+                break
+            except Exception as e:  # noqa: BLE001 - try next backend
+                errors.append(f"{fn.__name__}: {e}")
+        else:
             raise RuntimeError(
-                "openssl failed to generate a certificate; install openssl "
-                "or place server.crt/server.key in " + cert_dir
-            )
+                "could not generate a TLS certificate (tried openssl CLI and the "
+                f"cryptography package): {'; '.join(errors)}. Install openssl or "
+                "`pip install cryptography` and retry.")
         os.chmod(key, 0o600)
 
     return cert, key, fingerprint_of_pem(cert)
