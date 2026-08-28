@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "usbferry"
-version = "0.4.3"
-description = "Share USB devices and LAN connectivity across networks or the internet — encrypted usbip + TAP tunnel, GUI, CLI and web admin."
+version = "0.5.0"
+description = "Share USB devices and LAN across networks or the internet (encrypted usbip + TAP tunnel). GUI + CLI + web admin; automates usbipd-win/usbip setup on Windows."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

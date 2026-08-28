@@ -3,6 +3,13 @@
 Share **USB devices** and a **LAN connection** across networks or the internet —
 with a modern desktop GUI, a CLI, and a web-managed server.
 
+On Windows, USB sharing builds on [usbipd-win](https://github.com/dorssel/usbipd-win)
+(the standard open-source USB/IP server for Windows): **usbferry automates all
+of it for you** — it detects whether usbipd-win is installed, can download and
+install the official installer with one click (with a UAC prompt), starts the
+service for you when it's stopped, and handles device bind/unbind through its
+CLI. You never touch a PowerShell prompt unless you want to.
+
 usbferry is a server/client app that tunnels the kernel-standard **USB/IP
 (usbip)** protocol and raw **ethernet frames (TAP virtual NIC)** through one
 encrypted, token-authenticated TLS connection — so a USB device plugged into
@@ -37,9 +44,14 @@ can join the server's network from anywhere.
 | Role | OS | Needs |
 |---|---|---|
 | Server | Linux | root, `usbip`/`usbipd` (for USB sharing), `/dev/net/tun` + `iptables` (for LAN sharing) |
-| Server | Windows | [usbipd-win](https://github.com/dorssel/usbipd-win) for USB sharing (LAN sharing needs Linux) |
+| Server | Windows | [usbipd-win](https://github.com/dorssel/usbipd-win) for USB sharing — **usbferry installs and manages it for you** (one click in the app). LAN sharing needs Linux. |
 | Client (Linux) | Linux | root for attach/LAN, `usbip` tools (`vhci-hcd`) |
 | Client (Windows) | Windows 10/11 | [usbip-win2](https://github.com/vadimgrn/usbip-win2) for USB; OpenVPN TAP driver for LAN (experimental) |
+
+**Licensing note:** usbferry is MIT and does not bundle any third-party driver.
+usbipd-win (GPL-3.0) and usbip-win2 are downloaded on demand from their
+official releases when you click Install, so they travel vendor → your machine
+without being distributed by usbferry.
 
 **Server kernel note** — needs `usbip-host` module support (any standard
 Debian/Ubuntu/Fedora/Proxmox kernel has it):

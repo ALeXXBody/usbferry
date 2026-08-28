@@ -93,6 +93,32 @@ def test_parser():
     check("sc: unknown", q(0, "garbage") == "unknown")
 
 
+GITHUB_RELEASE = {
+    "tag_name": "v4.3.0",
+    "assets": [
+        {"name": "usbipd-win_4.3.0.arm64.zip", "size": 12345,
+         "browser_download_url": "https://x/arm64.zip"},
+        {"name": "usbipd-win_4.3.0.x64.msi", "size": 5432109,
+         "browser_download_url": "https://x/usbipd-win_4.3.0.x64.msi"},
+        {"name": "usbipd-win_4.3.0.x64.zip", "size": 999,
+         "browser_download_url": "https://x/x64.zip"},
+    ],
+}
+
+
+def test_msi_picker():
+    print("[msi asset picker]")
+    from usbferry.winsetup import pick_msi_asset
+    name, url, size = pick_msi_asset(GITHUB_RELEASE)
+    check("picks the .msi (not zips)", name == "usbipd-win_4.3.0.x64.msi" and url.endswith(".msi"))
+    check("size parsed", size == 5432109)
+    try:
+        pick_msi_asset({"assets": [{"name": "a.zip", "browser_download_url": "u"}]})
+        check("no-msi release raises", False)
+    except ValueError:
+        check("no-msi release raises", True)
+
+
 # --------------------------------------------------------------- local server
 async def gui_api(port, path, method="GET", body=None):
     code, out = await http_api(port, "/api/" + path, "x", method, body)
@@ -199,6 +225,60 @@ async def test_local_server():
         st = await gui_api(gui_port, "status")
         check("usb available again after retry",
               st[1]["local_server"]["usbip"]["available"] is True)
+
+        # one-click install: faked download/install; verifies the state machine
+        # and that the service comes up afterwards
+        from usbferry import winsetup
+        seen_progress = []
+
+        async def fake_latest():
+            return "usbipd-win_9.9.9.x64.msi", "http://vendor/usbipd.msi", 5432109
+
+        async def fake_download(url, dest, progress=None):
+            for p in (25, 60, 100):
+                if progress:
+                    progress(p)
+                    seen_progress.append(p)
+
+        async def fake_install(path):
+            return True, "installed"
+
+        orig = (winsetup.latest_msi, winsetup.download, winsetup.install_msi_elevated)
+        winsetup.latest_msi = fake_latest
+        winsetup.download = fake_download
+        winsetup.install_msi_elevated = fake_install
+        try:
+            gui.is_windows = True  # route guard is a test seam
+            gui.local_server.usbip.available = False
+            gui.local_server.usbip.error = "usbipd-win is not installed (simulated)"
+            c, r = await gui_api(gui_port, "local-server/usb/install", "POST")
+            check("install kicked off", c == 200 and r.get("ok") is True, str(r))
+            for _ in range(50):
+                st = await gui_api(gui_port, "status")
+                if st[1]["usbip_install"]["state"] in ("done", "error"):
+                    break
+                await asyncio.sleep(0.1)
+            inst = st[1]["usbip_install"]
+            check("install reaches done", inst["state"] == "done", str(inst))
+            check("progress reported during download", seen_progress[-1] == 100)
+            check("service available after install",
+                  st[1]["local_server"]["usbip"]["available"] is True)
+            c, r = await gui_api(gui_port, "local-server/usb/install", "POST")
+            check("install not duplicated while done", c == 200 and r.get("ok") is True)
+        finally:
+            winsetup.latest_msi, winsetup.download, winsetup.install_msi_elevated = orig
+            gui.is_windows = os.name == "nt"
+
+        # non-Windows guard
+        gui2 = GuiApp(state_path=os.path.join(TMP, "gui2.json"))
+        p2 = await gui2.start()
+        try:
+            gui2.is_windows = False
+            c, r = await gui_api(p2, "local-server/usb/install", "POST")
+            check("install refused off-Windows",
+                  c == 400 and "only" in r.get("error", ""), str(r))
+        finally:
+            await gui2.stop()
 
         c, r = await gui_api(gui_port, "local-server/start", "POST", {"port": srv_port})
         check("double start rejected", r.get("ok") is False)

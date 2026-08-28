@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import sys
+import tempfile
 import threading
 import time
 import webbrowser
@@ -56,6 +57,9 @@ class GuiApp:
         self.local_server = None      # UsbferryServer when running
         self.local_ports: tuple[int, int] = (0, 0)
         self.last_created_token: tuple[str, str] | None = None  # (name, plaintext), session only
+        self.usbip_install: dict = {"state": "idle", "progress": 0,
+                                    "error": None, "note": None}
+        self.is_windows = os.name == "nt"  # test seam for the install route
         self.app_path = next((p for p in APP_CANDIDATES if os.path.exists(p)), APP_CANDIDATES[1])
 
     # ----- lifecycle --------------------------------------------------------
@@ -275,7 +279,46 @@ class GuiApp:
             "attached": self.attached,
             "logs": list(self.logs)[-80:],
             "local_server": self.local_server_status(),
+            "usbip_install": dict(self.usbip_install),
         }
+
+    # ----- usbipd-win one-click install ---------------------------------------
+    async def _run_usbip_install(self):
+        """Download + install usbipd-win, then start the service. Updates
+        self.usbip_install state for the frontend: idle -> downloading ->
+        installing -> starting -> done | error."""
+        from . import winsetup
+        st = self.usbip_install
+        try:
+            st.update(state="downloading", progress=0, error=None, note=None)
+            name, url, size = await winsetup.latest_msi()
+            self.log("usbipd-win installer: %s (%s) from the official releases",
+                     name, human_bytes(size))
+            dest = os.path.join(tempfile.gettempdir(), winsetup.MSI_NAME)
+            await winsetup.download(url, dest,
+                                    progress=lambda p: st.update(progress=p))
+            st.update(state="installing", progress=100)
+            ok, msg = await winsetup.install_msi_elevated(dest)
+            if not ok:
+                st.update(state="error", error=msg)
+                self.log("usbipd-win install failed: %s", msg)
+                return
+            self.log("usbipd-win %s", msg)
+            st.update(state="starting", note=msg)
+            mgr = self.local_server.usbip if self.local_server else None
+            if mgr is not None:
+                await mgr.start()
+            st.update(state="done", note=msg)
+            if mgr is not None and getattr(mgr, "available", False):
+                self.log("USB sharing is now available")
+            else:
+                self.log("usbipd installed; press 'Start USB sharing' if needed")
+        except Exception as e:  # noqa: BLE001 - surfaced to the user
+            st.update(state="error", error=f"{type(e).__name__}: {e}")
+            self.log("usbipd-win install error: %s", e)
+
+    def usbip_install_busy(self) -> bool:
+        return self.usbip_install.get("state") in ("downloading", "installing", "starting")
 
     # ----- http -----------------------------------------------------------------
     async def _handle(self, reader, writer):
@@ -417,6 +460,21 @@ class GuiApp:
                 respond(writer, 200, {"ok": mgr.available,
                                       "available": mgr.available,
                                       "error": mgr.error})
+            elif api == "local-server/usb/install" and method == "POST":
+                if not self.is_windows:
+                    respond(writer, 400, {"ok": False,
+                                          "error": "usbipd-win is only needed on a Windows server"})
+                    return
+                if not self.local_server:
+                    respond(writer, 400, {"ok": False, "error": "server not running"})
+                    return
+                if self.usbip_install_busy():
+                    respond(writer, 200, {"ok": True,
+                                          "state": self.usbip_install["state"],
+                                          "progress": self.usbip_install.get("progress", 0)})
+                    return
+                asyncio.create_task(self._run_usbip_install())
+                respond(writer, 200, {"ok": True, "state": "downloading"})
             elif api == "local-server/usb/bind" and method == "POST":
                 if not self.local_server:
                     respond(writer, 400, {"ok": False, "error": "server not running"})

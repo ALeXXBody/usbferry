@@ -169,6 +169,7 @@ class WindowsUsbipManager:
         self.usbipd_bin = which("usbipd") or which("usbipd.exe")
         self.available = False
         self.error = None
+        self.installable = False  # service missing -> app can offer 1-click install
 
     async def start(self):
         if await self._port_open():
@@ -181,11 +182,12 @@ class WindowsUsbipManager:
 
         state = await self._service_state()
         if state == "missing":
+            self.installable = True
             self.error = (
-                "usbipd-win is not installed. Install it with "
-                "'winget install dorssel.usbipd-win' or from "
-                "https://github.com/dorssel/usbipd-win/releases, then press "
-                "'Start USB sharing' again.")
+                "usbipd-win is not installed. Click 'Install usbipd-win for me' "
+                "in the app (downloads the official installer), or install it "
+                "yourself with 'winget install dorssel.usbipd-win' or from "
+                "https://github.com/dorssel/usbipd-win/releases.")
             log.warning("usbip unavailable: %s", self.error)
             return
 
@@ -856,7 +858,8 @@ class UsbferryServer:
             "port": self.cfg["port"],
             "sessions": sessions,
             "usbip": {"available": self.usbip.available, "error": self.usbip.error,
-                      "port": self.usbip.port},
+                      "port": self.usbip.port,
+                      "installable": getattr(self.usbip, "installable", False)},
             "lan": {"active": self.lan.active, "error": self.lan.error,
                     "mode": self.lan.mode, "subnet": str(self.lan.subnet),
                     "server_ip": self.lan.server_ip, "leases": self.lan.lease_list()},
