@@ -56,7 +56,8 @@ class FakeUsbip(UsbipManager):
         self.error = None
 
     async def start(self):
-        pass
+        self.available = True
+        self.error = None
 
     async def list_devices(self):
         return self.devices

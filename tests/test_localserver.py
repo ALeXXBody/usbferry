@@ -52,6 +52,20 @@ USBIPD_V2 = """
 """.strip()
 
 
+SC_RUNNING = """
+SERVICE_NAME: usbipd
+        TYPE               : 10  WIN32_OWN_PROCESS
+        STATE              : 4  RUNNING
+                                (STOPPABLE, NOT_PAUSABLE, ACCEPTS_SHUTDOWN)
+""".strip()
+
+SC_STOPPED = """
+SERVICE_NAME: usbipd
+        TYPE               : 10  WIN32_OWN_PROCESS
+        STATE              : 1  STOPPED
+""".strip()
+
+
 def test_parser():
     print("[usbipd-win parser]")
     devs = WindowsUsbipManager.parse_list(USBIPD_V4)
@@ -70,6 +84,13 @@ def test_parser():
     if devs2:
         check("v2-style: fields", devs2[0]["busid"] == "3-2"
               and devs2[0]["vidpid"] == "1005:b113")
+
+    print("[sc query parser]")
+    q = WindowsUsbipManager.parse_service_query
+    check("sc: running", q(0, SC_RUNNING) == "running")
+    check("sc: stopped", q(0, SC_STOPPED) == "stopped")
+    check("sc: missing (1060)", q(1060, "The specified service does not exist...") == "missing")
+    check("sc: unknown", q(0, "garbage") == "unknown")
 
 
 # --------------------------------------------------------------- local server
@@ -169,6 +190,15 @@ async def test_local_server():
         c, r = await gui_api(gui_port, "local-server/usb")
         devs = (r.get("data") or {}).get("devices", [])
         check("bind took effect", next(d["exported"] for d in devs if d["busid"] == "1-2"))
+
+        # retry route: simulate usbip being down, then recovered by retry
+        gui.local_server.usbip.available = False
+        gui.local_server.usbip.error = "service stopped (simulated)"
+        c, r = await gui_api(gui_port, "local-server/usb/retry", "POST")
+        check("usb retry returns ok", c == 200 and r.get("ok") is True, str(r))
+        st = await gui_api(gui_port, "status")
+        check("usb available again after retry",
+              st[1]["local_server"]["usbip"]["available"] is True)
 
         c, r = await gui_api(gui_port, "local-server/start", "POST", {"port": srv_port})
         check("double start rejected", r.get("ok") is False)

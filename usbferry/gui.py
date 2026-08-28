@@ -406,6 +406,17 @@ class GuiApp:
                     "data": {"available": self.local_server.usbip.available,
                              "error": self.local_server.usbip.error,
                              "devices": await self.local_server.usbip.list_devices()}})
+            elif api == "local-server/usb/retry" and method == "POST":
+                if not self.local_server:
+                    respond(writer, 400, {"ok": False, "error": "server not running"})
+                    return
+                mgr = self.local_server.usbip
+                await mgr.start()  # idempotent: re-detect / re-start usbipd
+                if mgr.available:
+                    self.log("usb sharing is now available")
+                respond(writer, 200, {"ok": mgr.available,
+                                      "available": mgr.available,
+                                      "error": mgr.error})
             elif api == "local-server/usb/bind" and method == "POST":
                 if not self.local_server:
                     respond(writer, 400, {"ok": False, "error": "server not running"})

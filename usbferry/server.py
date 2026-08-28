@@ -14,7 +14,7 @@ from . import __version__, certutil
 from .common import (
     CH_CONTROL, DEFAULT_PORT, DEFAULT_WEB_PORT, FT_CLOSE, FT_CTRL, FT_DATA,
     FT_OPEN, FT_PING, FT_PONG, MAX_HELLO, ProtocolError, USBIP_PORT,
-    config_dir, constant_time_eq, human_bytes, load_json, log,
+    config_dir, constant_time_eq, human_bytes, is_elevated, load_json, log,
     new_token, read_frame, run, save_json,
     token_hash, which,
 )
@@ -157,8 +157,9 @@ _USBIPD_STATE_RE = re.compile(
 class WindowsUsbipManager:
     """Server-side usbip management on Windows via usbipd-win (dorssel/usbipd-win).
 
-    usbipd-win runs a Windows service (its own daemon on TCP/3240); we only
-    manage it: check the service port, parse `usbipd list`, bind/unbind.
+    usbipd-win runs a Windows service (its own daemon on TCP/3240); we manage
+    it: detect install state, start the service (elevating via UAC when the
+    app itself is not elevated), parse `usbipd list`, bind/unbind.
     """
 
     def __init__(self, cfg: dict):
@@ -174,21 +175,78 @@ class WindowsUsbipManager:
             self.available = True
             log.info("usbipd-win service listening on %s:%s", self.host, self.port)
             return
-        if self.usbipd_bin and self.start_daemon:
-            rc, _, _ = await run(["net", "start", "usbipd"], timeout=20)
-            for _ in range(20):
-                if await self._port_open():
-                    break
-                await asyncio.sleep(0.25)
+        if not self.start_daemon:
+            self.error = "usbipd-win service is not running"
+            return
+
+        state = await self._service_state()
+        if state == "missing":
+            self.error = (
+                "usbipd-win is not installed. Install it with "
+                "'winget install dorssel.usbipd-win' or from "
+                "https://github.com/dorssel/usbipd-win/releases, then press "
+                "'Start USB sharing' again.")
+            log.warning("usbip unavailable: %s", self.error)
+            return
+
+        # service installed but not listening: try to start it
+        if is_elevated():
+            rc, _, err = await run(["net", "start", "usbipd"], timeout=30)
+            if rc != 0 and "already been started" not in err:
+                log.warning("net start usbipd: %s", err.strip())
+        else:
+            rc, _, err = await run([
+                "powershell", "-NoProfile", "-Command",
+                "Start-Process -Verb RunAs -Wait -WindowStyle Hidden "
+                "-FilePath net.exe -ArgumentList 'start','usbipd'",
+            ], timeout=90)
+            if rc != 0:
+                low = err.lower()
+                if "canceled" in low or "cancelled" in low:
+                    why = ("Starting the usbipd-win service needs administrator "
+                           "approval and the UAC prompt was declined.")
+                else:
+                    why = f"could not start the usbipd-win service: {err.strip()}"
+                self.error = (why + " Press 'Start USB sharing' to try again "
+                              "(or run 'net start usbipd' as administrator).")
+                log.warning("usbip unavailable: %s", self.error)
+                return
+
+        for _ in range(40):  # service may take a few seconds to listen
+            if await self._port_open():
+                break
+            await asyncio.sleep(0.25)
         if await self._port_open():
             self.available = True
             log.info("usbipd-win service started")
         else:
-            self.error = (
-                "usbipd-win service is not running. Install usbipd-win "
-                "(https://github.com/dorssel/usbipd-win/releases) or start it "
-                "from an admin prompt:  net start usbipd")
+            self.error = ("usbipd-win service is not listening on TCP/3240; "
+                          "check it with 'sc query usbipd' and its event log.")
             log.warning("usbip unavailable: %s", self.error)
+
+    async def _port_open(self) -> bool:
+        try:
+            r, w = await asyncio.wait_for(
+                asyncio.open_connection(self.host, self.port), timeout=1.0)
+            w.close()
+            return True
+        except (OSError, asyncio.TimeoutError):
+            return False
+
+    async def _service_state(self) -> str:
+        """'running' | 'stopped' | 'missing' | 'unknown' for the usbipd service."""
+        rc, out, _ = await run(["sc", "query", "usbipd"], timeout=10)
+        return self.parse_service_query(rc, out)
+
+    @staticmethod
+    def parse_service_query(rc: int, out: str) -> str:
+        if rc != 0:
+            return "missing"  # e.g. 1060: service does not exist
+        if "RUNNING" in out:
+            return "running"
+        if "STOPPED" in out:
+            return "stopped"
+        return "unknown"
 
     async def _port_open(self) -> bool:
         try:

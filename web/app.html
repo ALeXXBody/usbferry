@@ -432,7 +432,13 @@ function renderServer(){
     w.classList.add("show");
   } else w.classList.remove("show");
   if(u.error){
-    w.innerHTML=`⚠️ USB sharing unavailable: ${esc(u.error)}`;w.classList.add("show");
+    w.innerHTML=`⚠️ USB sharing unavailable: ${esc(u.error)}
+      <div class="row" style="margin-top:8px">
+        <button class="btn sm" onclick="retryUsb()">Start USB sharing</button>
+        <a href="https://github.com/dorssel/usbipd-win/releases" target="_blank"
+           style="font-size:12.5px">get usbipd-win (Windows)</a>
+      </div>`;
+    w.classList.add("show");
   }
   const s=LS.sessions||[];
   $("#ssestable").innerHTML=s.length?
@@ -465,6 +471,12 @@ window.lsBind=async(busid,exported)=>{
   const r=await api("local-server/usb/"+(exported?"unbind":"bind"),"POST",{busid});
   flash(r.ok?(exported?`unbound ${busid}`:`bound ${busid}`):`failed: ${r.message||"?"}`,!r.ok);
   refreshLocalUsb();
+};
+window.retryUsb=async()=>{
+  const r=await api("local-server/usb/retry","POST");
+  ST=await api("status");LS=ST.local_server;
+  renderServer();
+  flash(r.ok?"USB sharing started":(r.error||"still unavailable"),!r.ok);
 };
 
 async function refreshLocalTokens(){
